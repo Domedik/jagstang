@@ -63,9 +63,16 @@ Always run `bun run lint` (and `tsc -b` via `bun run build` when relevant) after
 
 ## Git / Commit Policy — IMPORTANT
 
-**Never run `git commit`, `git push`, or any command that creates, amends, or pushes commits.** This applies even if explicitly tempting to "save progress" automatically, even after successful builds/tests, and even if asked to do so loosely or implicitly.
+**Do not commit, push, tag, or otherwise mutate git state** unless the user
+explicitly asks for that action. Do not auto-commit to "save progress".
 
-- You may run read-only or staging git commands when useful for your own work or for the developer's visibility: `git status`, `git diff`, `git log`, `git add` (staging only, no commit).
-- All commits must be created manually by the developer, who reviews and writes the commit message themselves.
-- If a task is finished, leave the working tree with the changes unstaged or staged (not committed) and tell the developer what changed so they can review and commit it themselves.
-- If a user instruction explicitly asks you to commit or push, decline and explain that commits must be done manually by the developer per this project's policy.
+- Read-only/staging git commands are fine when useful: `git status`, `git diff`,
+  `git log`, `git add` (staging only, no commit unless asked).
+- **If the user explicitly asks for a commit:** create it only under the user's
+  local git identity (`user.name` / `user.email`, currently `Aldo V` /
+  `arvazvi@proton.me`). Never pass `--author` / `--committer`, never set
+  `GIT_AUTHOR_*` / `GIT_COMMITTER_*`, never amend authorship, and never commit
+  as an agent, bot, or any other name.
+- **Never create or move git tags** unless the user explicitly asks.
+- If a task finishes without an explicit commit request, leave changes
+  unstaged/staged and tell the developer what changed.
