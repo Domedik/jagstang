@@ -187,7 +187,7 @@ const RequestsInbox: React.FC<RequestsInboxProps> = ({
                     >
                       {patients.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} {p.lastname}
+                          {p.firstName} {p.lastName}
                         </option>
                       ))}
                     </Select>
