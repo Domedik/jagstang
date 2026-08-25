@@ -38,6 +38,8 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiDownload,
+  FiClock,
+  FiInbox,
 } from 'react-icons/fi';
 import {
   Calendar as BigCalendar,
@@ -66,6 +68,9 @@ import CalendarDayView from '../components/CalendarDayView';
 import CalendarAgendaView from '../components/CalendarAgendaView';
 import StatusBadge from '../components/StatusBadge';
 import FormDrawer from '../components/FormDrawer';
+import AvailabilityEditor from '../components/AvailabilityEditor';
+import RequestsInbox from '../components/RequestsInbox';
+import { useAuth } from '../contexts/AuthContext';
 import type { ApiAppointment, Patient } from '../types';
 import { normalizePatientSlug } from '../utils/patientSlug';
 import { getErrorMessage } from '../utils/apiStatus';
@@ -137,6 +142,10 @@ const CalendarPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
+  const { doctor } = useAuth();
+  // Cognito pool group is "DOCTORS"; some tokens/claims still use "DOCTOR".
+  const doctorRole = (doctor?.role ?? '').toUpperCase();
+  const isDoctor = doctorRole === 'DOCTOR' || doctorRole === 'DOCTORS';
   const {
     appointments,
     createAppointment,
@@ -158,6 +167,16 @@ const CalendarPage: React.FC = () => {
     isOpen: isCancelOpen,
     onOpen: onCancelOpen,
     onClose: onCancelClose,
+  } = useDisclosure();
+  const {
+    isOpen: isAvailabilityOpen,
+    onOpen: onAvailabilityOpen,
+    onClose: onAvailabilityClose,
+  } = useDisclosure();
+  const {
+    isOpen: isRequestsOpen,
+    onOpen: onRequestsOpen,
+    onClose: onRequestsClose,
   } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement | null>(null);
 
@@ -447,6 +466,36 @@ const CalendarPage: React.FC = () => {
         sub={`Vista ${viewOptions.find((v) => v.id === view)?.label.toLowerCase() ?? ''}`}
         actions={
           <>
+            {isDoctor && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  h="36px"
+                  leftIcon={<FiInbox />}
+                  borderColor="line.strong"
+                  color="text.strong"
+                  bg={cardBg}
+                  onClick={onRequestsOpen}
+                  _hover={{ borderColor: 'paper.600' }}
+                >
+                  Solicitudes
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  h="36px"
+                  leftIcon={<FiClock />}
+                  borderColor="line.strong"
+                  color="text.strong"
+                  bg={cardBg}
+                  onClick={onAvailabilityOpen}
+                  _hover={{ borderColor: 'paper.600' }}
+                >
+                  Disponibilidad
+                </Button>
+              </>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -1239,6 +1288,20 @@ const CalendarPage: React.FC = () => {
         initialPatientId={initialPatientId}
         createAppointment={createAppointment}
       />
+
+      {isDoctor && (
+        <>
+          <AvailabilityEditor
+            isOpen={isAvailabilityOpen}
+            onClose={onAvailabilityClose}
+          />
+          <RequestsInbox
+            isOpen={isRequestsOpen}
+            onClose={onRequestsClose}
+            patients={patients}
+          />
+        </>
+      )}
     </Container>
   );
 };

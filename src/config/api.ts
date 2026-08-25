@@ -83,4 +83,14 @@ export const API_ENDPOINTS = {
   ADMIN_COMPLIANCE: (doctorId: string) => `/admin/compliance/${doctorId}/`,
   ADMIN_COMPLIANCE_OVERALL: (doctorId: string) =>
     `/admin/compliance/${doctorId}/overall_score/`,
+
+  // Bigsby — disponibilidad, consultorios, solicitudes y citas
+  LOCATIONS_LIST: '/locations/',
+  LOCATIONS_CREATE: '/locations/',
+  LOCATIONS_UPDATE: (id: string) => `/locations/${id}/`,
+  LOCATIONS_DELETE: (id: string) => `/locations/${id}/`,
+  AVAILABILITY_GET: '/availability/',
+  AVAILABILITY_PUT: '/availability/',
+  REQUESTS_LIST: '/requests/',
+  REQUESTS_PATCH: (id: string) => `/requests/${id}/`,
 };

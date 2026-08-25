@@ -79,6 +79,7 @@ const AdminUserDrawer: React.FC<AdminUserDrawerProps> = ({
   const [familyName, setFamilyName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('doctor');
+  const [slug, setSlug] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -88,15 +89,23 @@ const AdminUserDrawer: React.FC<AdminUserDrawerProps> = ({
       setFamilyName('');
       setEmail('');
       setRole('doctor');
+      setSlug('');
       setPassword(generatePassword());
     }
   }, [isOpen]);
+
+  const slugNormalized = slug.trim().toLowerCase();
+  const slugOk =
+    role !== 'doctor' ||
+    slugNormalized === '' ||
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slugNormalized);
 
   const canSubmit =
     !!name.trim() &&
     !!familyName.trim() &&
     EMAIL_RE.test(email.trim()) &&
-    password.length >= PASSWORD_MIN_LENGTH;
+    password.length >= PASSWORD_MIN_LENGTH &&
+    slugOk;
 
   const copyPassword = async () => {
     try {
@@ -124,6 +133,9 @@ const AdminUserDrawer: React.FC<AdminUserDrawerProps> = ({
         family_name: familyName.trim(),
         role,
         password,
+        ...(role === 'doctor' && slugNormalized
+          ? { slug: slugNormalized }
+          : {}),
       });
       toast({
         title: 'Usuario creado',
@@ -140,8 +152,15 @@ const AdminUserDrawer: React.FC<AdminUserDrawerProps> = ({
         message?: string;
       };
       let description = message || 'No se pudo crear el usuario.';
-      if (status === 409) {
+      const msg = (message || '').toUpperCase();
+      if (status === 409 && msg.includes('SLUG')) {
+        description =
+          'Ese slug ya está en uso. Elige otro para la landing del doctor.';
+      } else if (status === 409) {
         description = 'Ya existe un usuario con ese correo.';
+      } else if (status === 400 && msg.includes('SLUG')) {
+        description =
+          'El slug solo puede usar letras minúsculas, números y guiones.';
       } else if (status === 400) {
         description =
           'Datos inválidos o la contraseña no cumple la política de seguridad.';
@@ -221,6 +240,28 @@ const AdminUserDrawer: React.FC<AdminUserDrawerProps> = ({
             ))}
           </Select>
         </FormControl>
+
+        {role === 'doctor' && (
+          <FormControl isInvalid={slugNormalized !== '' && !slugOk}>
+            <FormLabel {...FIELD_LABEL_STYLES}>
+              Slug de landing (opcional)
+            </FormLabel>
+            <Input
+              {...INPUT_STYLES}
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              placeholder="ej. maria-lopez"
+              maxLength={64}
+              autoComplete="off"
+            />
+            <Text mt={1.5} fontSize="11.5px" color="text.label">
+              URL pública del doctor:{' '}
+              {`{clínica}.clineo.mx/${slugNormalized || 'slug'}/`}. Solo
+              minúsculas, números y guiones. Si ya está en uso, no se crea la
+              cuenta.
+            </Text>
+          </FormControl>
+        )}
 
         <FormControl isRequired>
           <FormLabel {...FIELD_LABEL_STYLES}>Contraseña</FormLabel>

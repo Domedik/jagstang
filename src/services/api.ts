@@ -966,6 +966,8 @@ class ApiService {
     family_name: string;
     role: string;
     password: string;
+    /** Doctor-only: public landing slug (`[a-z0-9-]+`). 409 LANDINGS:SLUG_TAKEN. */
+    slug?: string;
   }) {
     return this.request<ApiAdminUserRow>(API_ENDPOINTS.ADMIN_USERS, {
       method: 'POST',
@@ -1048,11 +1050,11 @@ class ApiService {
     );
   }
 
-  // ============ APPOINTMENTS ============
+  // ============ APPOINTMENTS (bigsby) ============
 
   /**
    * List appointments for the current doctor
-   * GET /doctor/appointments/
+   * GET /appointments/
    */
   async listAppointments(params?: { page?: number; size?: number }) {
     const queryParams = new URLSearchParams();
@@ -1064,25 +1066,24 @@ class ApiService {
     return this.request<{
       results: Array<{
         id: string;
-        /** Dueño de la agenda; difiere del usuario cuando la cita es de un equipo. */
         doctor_id: string;
         patient_id: string;
+        location_id?: string | null;
         starts_at: string;
         ends_at: string;
         status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
         additional_notes?: string | null;
+        created_at?: string;
       }>;
       count: number;
-      page: number;
       size: number;
-    }>(`/doctor/appointments/${query ? `?${query}` : ''}`);
+    }>(`${API_ENDPOINTS.APPOINTMENTS_LIST}${query ? `?${query}` : ''}`);
   }
 
   /**
    * Create a new appointment
-   * POST /doctor/appointments/
-   * `doctor` es opcional: un asistente lo manda para agendar en nombre del
-   * doctor de su equipo (autorizado con un grant de citas a nivel doctor).
+   * POST /appointments/
+   * Doctor is always the authenticated caller (bigsby).
    */
   async createAppointment(data: {
     patient: string;
@@ -1090,49 +1091,62 @@ class ApiService {
     starts_at: string;
     duration: string;
     additional_notes?: string;
+    location_id?: string | null;
   }) {
-    return this.request<void>('/doctor/appointments/', {
+    const body: Record<string, unknown> = {
+      patient_id: data.patient,
+      starts_at: data.starts_at,
+      duration: data.duration,
+    };
+    if (data.additional_notes) body.additional_notes = data.additional_notes;
+    if (data.location_id) body.location_id = data.location_id;
+    return this.request<void>(API_ENDPOINTS.APPOINTMENTS_CREATE, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(body),
     });
   }
 
   /**
    * Get a single appointment by ID
-   * GET /doctor/appointments/<id>/
+   * GET /appointments/<id>/
    */
   async getAppointment(id: string) {
     return this.request<{
       id: string;
       doctor_id: string;
       patient_id: string;
+      location_id?: string | null;
       starts_at: string;
       ends_at: string;
       status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
       additional_notes?: string | null;
-    }>(`/doctor/appointments/${id}/`);
+      created_at?: string;
+    }>(API_ENDPOINTS.APPOINTMENTS_GET(id));
   }
 
   /**
    * Update appointment status
-   * PATCH /doctor/appointments/<id>/status/
+   * PATCH /appointments/<id>/status/
    */
   async updateAppointmentStatus(
     id: string,
     status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'
   ) {
-    return this.request<void>(`/doctor/appointments/${id}/status/`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
+    return this.request<void>(
+      `${API_ENDPOINTS.APPOINTMENTS_GET(id)}status/`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }
+    );
   }
 
   /**
-   * Delete an appointment
-   * DELETE /doctor/appointments/<id>/
+   * Soft-delete an appointment
+   * DELETE /appointments/<id>/
    */
   async deleteAppointment(id: string) {
-    return this.request<void>(`/doctor/appointments/${id}/`, {
+    return this.request<void>(API_ENDPOINTS.APPOINTMENTS_GET(id), {
       method: 'DELETE',
     });
   }
@@ -2059,6 +2073,152 @@ class ApiService {
       }
     );
   }
+
+  // ── Bigsby: consultorios y disponibilidad semanal ───────────────────────
+
+  async listLocations(params?: { page?: number; size?: number }) {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.size) query.set('size', String(params.size));
+    const qs = query.toString();
+    return this.request<{
+      results: ApiLocation[];
+      count: number;
+      size: number;
+    }>(`${API_ENDPOINTS.LOCATIONS_LIST}${qs ? `?${qs}` : ''}`);
+  }
+
+  async createLocation(data: { name: string; address?: string | null }) {
+    return this.request<ApiLocation>(API_ENDPOINTS.LOCATIONS_CREATE, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateLocation(
+    id: string,
+    data: { name?: string; address?: string | null; is_active?: boolean }
+  ) {
+    return this.request<ApiLocation>(API_ENDPOINTS.LOCATIONS_UPDATE(id), {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteLocation(id: string) {
+    return this.request<void>(API_ENDPOINTS.LOCATIONS_DELETE(id), {
+      method: 'DELETE',
+    });
+  }
+
+  async listAppointmentRequests(params?: { page?: number; size?: number }) {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.size) query.set('size', String(params.size));
+    const qs = query.toString();
+    return this.request<{
+      results: ApiAppointmentRequest[];
+      count: number;
+      size: number;
+    }>(`${API_ENDPOINTS.REQUESTS_LIST}${qs ? `?${qs}` : ''}`);
+  }
+
+  async decideAppointmentRequest(
+    id: string,
+    decision: {
+      status: 'ACCEPTED' | 'DECLINED';
+      patient_id?: string;
+      starts_at?: string;
+      duration?: string;
+      location_id?: string | null;
+      additional_notes?: string | null;
+    }
+  ) {
+    return this.request<ApiAppointmentRequest>(
+      API_ENDPOINTS.REQUESTS_PATCH(id),
+      {
+        method: 'PATCH',
+        body: JSON.stringify(decision),
+      }
+    );
+  }
+
+  async getAvailability() {
+    return this.request<ApiAvailabilityConfig>(API_ENDPOINTS.AVAILABILITY_GET);
+  }
+
+  async putAvailability(payload: ApiAvailabilityReplacePayload) {
+    return this.request<ApiAvailabilityConfig>(API_ENDPOINTS.AVAILABILITY_PUT, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+}
+
+export interface ApiLocation {
+  id: string;
+  user_id: string;
+  name: string;
+  address?: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ApiAppointmentRequest {
+  id: string;
+  location_id?: string | null;
+  patient_phone: string;
+  preferred_at?: string | null;
+  notes?: string | null;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
+  appointment_id?: string | null;
+  patient_id?: string | null;
+  consent_at: string;
+  created_at: string;
+}
+
+export interface ApiAvailabilityWindow {
+  id?: string;
+  location_id?: string | null;
+  location_name?: string | null;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+}
+
+export interface ApiAvailabilityBlock {
+  id?: string;
+  starts_at: string;
+  ends_at: string;
+  reason?: string | null;
+  created_at?: string;
+}
+
+export interface ApiAvailabilitySettings {
+  timezone: string;
+  slot_duration_minutes: number;
+  min_notice_hours: number;
+  horizon_days: number;
+}
+
+export interface ApiAvailabilityConfig extends ApiAvailabilitySettings {
+  windows: ApiAvailabilityWindow[];
+  blocks: ApiAvailabilityBlock[];
+}
+
+export interface ApiAvailabilityReplacePayload {
+  settings: ApiAvailabilitySettings;
+  windows: Array<{
+    location_id?: string | null;
+    weekday: number;
+    start_time: string;
+    end_time: string;
+  }>;
+  blocks: Array<{
+    starts_at: string;
+    ends_at: string;
+    reason?: string | null;
+  }>;
 }
 
 export const apiService = new ApiService();
