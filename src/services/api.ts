@@ -18,6 +18,13 @@ import {
 /** Wider timeout for the enriched (and slower) v2.0 patients list. */
 const PATIENTS_LIST_TIMEOUT_MS = 60000;
 
+function withDoctorScope(endpoint: string, doctor?: string): string {
+  const scopedDoctor = doctor?.trim();
+  if (!scopedDoctor) return endpoint;
+  const separator = endpoint.includes('?') ? '&' : '?';
+  return `${endpoint}${separator}doctor=${encodeURIComponent(scopedDoctor)}`;
+}
+
 export interface ApiError {
   message: string;
   status: number;
@@ -341,6 +348,15 @@ export interface ApiTeamMembership {
   doctor_name: string;
   doctor_family_name: string;
   role: 'nurse' | 'assistant';
+}
+
+export interface ApiDoctorLanding {
+  display_name: string;
+  specialty?: string | null;
+  bio?: string | null;
+  photo_url?: string | null;
+  is_published: boolean;
+  public_url?: string | null;
 }
 
 class ApiService {
@@ -1056,11 +1072,16 @@ class ApiService {
    * List appointments for the current doctor
    * GET /appointments/
    */
-  async listAppointments(params?: { page?: number; size?: number }) {
+  async listAppointments(params?: {
+    page?: number;
+    size?: number;
+    doctor?: string;
+  }) {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.size != null)
       queryParams.append('size', params.size.toString());
+    if (params?.doctor) queryParams.append('doctor', params.doctor);
 
     const query = queryParams.toString();
     return this.request<{
@@ -1083,7 +1104,7 @@ class ApiService {
   /**
    * Create a new appointment
    * POST /appointments/
-   * Doctor is always the authenticated caller (bigsby).
+   * Assistants scope the request with `?doctor=<id>`.
    */
   async createAppointment(data: {
     patient: string;
@@ -1100,17 +1121,20 @@ class ApiService {
     };
     if (data.additional_notes) body.additional_notes = data.additional_notes;
     if (data.location_id) body.location_id = data.location_id;
-    return this.request<void>(API_ENDPOINTS.APPOINTMENTS_CREATE, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
+    return this.request<void>(
+      withDoctorScope(API_ENDPOINTS.APPOINTMENTS_CREATE, data.doctor),
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }
+    );
   }
 
   /**
    * Get a single appointment by ID
    * GET /appointments/<id>/
    */
-  async getAppointment(id: string) {
+  async getAppointment(id: string, doctor?: string) {
     return this.request<{
       id: string;
       doctor_id: string;
@@ -1121,7 +1145,7 @@ class ApiService {
       status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
       additional_notes?: string | null;
       created_at?: string;
-    }>(API_ENDPOINTS.APPOINTMENTS_GET(id));
+    }>(withDoctorScope(API_ENDPOINTS.APPOINTMENTS_GET(id), doctor));
   }
 
   /**
@@ -1130,25 +1154,56 @@ class ApiService {
    */
   async updateAppointmentStatus(
     id: string,
-    status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'
+    status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED',
+    doctor?: string
   ) {
-    return this.request<void>(`${API_ENDPOINTS.APPOINTMENTS_GET(id)}status/`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
+    return this.request<void>(
+      withDoctorScope(`${API_ENDPOINTS.APPOINTMENTS_GET(id)}status/`, doctor),
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }
+    );
   }
 
   /**
    * Soft-delete an appointment
    * DELETE /appointments/<id>/
    */
-  async deleteAppointment(id: string) {
-    return this.request<void>(API_ENDPOINTS.APPOINTMENTS_GET(id), {
-      method: 'DELETE',
-    });
+  async deleteAppointment(id: string, doctor?: string) {
+    return this.request<void>(
+      withDoctorScope(API_ENDPOINTS.APPOINTMENTS_GET(id), doctor),
+      {
+        method: 'DELETE',
+      }
+    );
   }
 
   // ============ TEAM (equipo del doctor) ============
+
+  async getDoctorLanding() {
+    return this.request<ApiDoctorLanding>(API_ENDPOINTS.DOCTOR_LANDING);
+  }
+
+  async updateDoctorLanding(data: {
+    display_name?: string;
+    specialty?: string;
+    bio?: string;
+  }) {
+    return this.request<ApiDoctorLanding>(API_ENDPOINTS.DOCTOR_LANDING, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async uploadDoctorLandingPhoto(file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    return this.request<ApiDoctorLanding>(API_ENDPOINTS.DOCTOR_LANDING_PHOTO, {
+      method: 'PUT',
+      body: form,
+    });
+  }
 
   /**
    * List the acting doctor's team members
@@ -2073,10 +2128,15 @@ class ApiService {
 
   // ── Bigsby: consultorios y disponibilidad semanal ───────────────────────
 
-  async listLocations(params?: { page?: number; size?: number }) {
+  async listLocations(params?: {
+    page?: number;
+    size?: number;
+    doctor?: string;
+  }) {
     const query = new URLSearchParams();
     if (params?.page) query.set('page', String(params.page));
     if (params?.size) query.set('size', String(params.size));
+    if (params?.doctor) query.set('doctor', params.doctor);
     const qs = query.toString();
     return this.request<{
       results: ApiLocation[];
@@ -2085,33 +2145,51 @@ class ApiService {
     }>(`${API_ENDPOINTS.LOCATIONS_LIST}${qs ? `?${qs}` : ''}`);
   }
 
-  async createLocation(data: { name: string; address?: string | null }) {
-    return this.request<ApiLocation>(API_ENDPOINTS.LOCATIONS_CREATE, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+  async createLocation(
+    data: { name: string; address?: string | null },
+    doctor?: string
+  ) {
+    return this.request<ApiLocation>(
+      withDoctorScope(API_ENDPOINTS.LOCATIONS_CREATE, doctor),
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
   }
 
   async updateLocation(
     id: string,
-    data: { name?: string; address?: string | null; is_active?: boolean }
+    data: { name?: string; address?: string | null; is_active?: boolean },
+    doctor?: string
   ) {
-    return this.request<ApiLocation>(API_ENDPOINTS.LOCATIONS_UPDATE(id), {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
+    return this.request<ApiLocation>(
+      withDoctorScope(API_ENDPOINTS.LOCATIONS_UPDATE(id), doctor),
+      {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }
+    );
   }
 
-  async deleteLocation(id: string) {
-    return this.request<void>(API_ENDPOINTS.LOCATIONS_DELETE(id), {
-      method: 'DELETE',
-    });
+  async deleteLocation(id: string, doctor?: string) {
+    return this.request<void>(
+      withDoctorScope(API_ENDPOINTS.LOCATIONS_DELETE(id), doctor),
+      {
+        method: 'DELETE',
+      }
+    );
   }
 
-  async listAppointmentRequests(params?: { page?: number; size?: number }) {
+  async listAppointmentRequests(params?: {
+    page?: number;
+    size?: number;
+    doctor?: string;
+  }) {
     const query = new URLSearchParams();
     if (params?.page) query.set('page', String(params.page));
     if (params?.size) query.set('size', String(params.size));
+    if (params?.doctor) query.set('doctor', params.doctor);
     const qs = query.toString();
     return this.request<{
       results: ApiAppointmentRequest[];
@@ -2129,10 +2207,11 @@ class ApiService {
       duration?: string;
       location_id?: string | null;
       additional_notes?: string | null;
-    }
+    },
+    doctor?: string
   ) {
     return this.request<ApiAppointmentRequest>(
-      API_ENDPOINTS.REQUESTS_PATCH(id),
+      withDoctorScope(API_ENDPOINTS.REQUESTS_PATCH(id), doctor),
       {
         method: 'PATCH',
         body: JSON.stringify(decision),
@@ -2140,15 +2219,23 @@ class ApiService {
     );
   }
 
-  async getAvailability() {
-    return this.request<ApiAvailabilityConfig>(API_ENDPOINTS.AVAILABILITY_GET);
+  async getAvailability(doctor?: string) {
+    return this.request<ApiAvailabilityConfig>(
+      withDoctorScope(API_ENDPOINTS.AVAILABILITY_GET, doctor)
+    );
   }
 
-  async putAvailability(payload: ApiAvailabilityReplacePayload) {
-    return this.request<ApiAvailabilityConfig>(API_ENDPOINTS.AVAILABILITY_PUT, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
+  async putAvailability(
+    payload: ApiAvailabilityReplacePayload,
+    doctor?: string
+  ) {
+    return this.request<ApiAvailabilityConfig>(
+      withDoctorScope(API_ENDPOINTS.AVAILABILITY_PUT, doctor),
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }
+    );
   }
 }
 

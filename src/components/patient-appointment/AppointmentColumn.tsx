@@ -30,6 +30,7 @@ import {
 import { es } from 'date-fns/locale';
 import { FiChevronLeft, FiChevronRight, FiCalendar, FiX } from 'react-icons/fi';
 import type { ApiAppointment } from '../../types';
+import type { ApiAvailabilityConfig } from '../../services/api';
 import {
   APPT_REASONS,
   DURATION_OPTIONS,
@@ -41,7 +42,7 @@ import {
   minsToHHMM,
   fmt12,
   slotsForDay,
-  CLINIC,
+  weekdayForDate,
 } from '../../utils/appointmentSlots';
 import { FIELD_LABEL_STYLES, INPUT_STYLES, TEXTAREA_STYLES } from './styles';
 import type { ApptState } from './types';
@@ -52,6 +53,7 @@ interface AppointmentColumnProps {
   appt: ApptState;
   hasWhen: boolean;
   appointments: ApiAppointment[];
+  availability?: ApiAvailabilityConfig | null | undefined;
   patientName: (id: string) => string;
   onApptChange: (patch: Partial<ApptState>) => void;
   /** Whether the section can be collapsed back (appointment optional). */
@@ -62,6 +64,7 @@ interface AppointmentColumnProps {
 const AppointmentColumn: React.FC<AppointmentColumnProps> = ({
   appt,
   appointments,
+  availability,
   patientName,
   onApptChange,
   collapsible,
@@ -153,6 +156,7 @@ const AppointmentColumn: React.FC<AppointmentColumnProps> = ({
           selectedDate={selectedDate}
           todayStart={todayStart}
           countsByDay={countsByDay}
+          availability={availability}
           onChangeMonth={setViewMonth}
           onSelectDate={(d) =>
             onApptChange({ dateISO: isoDate(d), timeMin: null })
@@ -172,6 +176,7 @@ const AppointmentColumn: React.FC<AppointmentColumnProps> = ({
             timeMin={appt.timeMin}
             durationMin={appt.durationMin}
             appointments={appointments}
+            availability={availability}
             patientName={patientName}
             onSelectTime={(min) => onApptChange({ timeMin: min })}
           />
@@ -217,6 +222,7 @@ function DrawerMiniCalendar({
   selectedDate,
   todayStart,
   countsByDay,
+  availability,
   onChangeMonth,
   onSelectDate,
 }: {
@@ -224,6 +230,7 @@ function DrawerMiniCalendar({
   selectedDate: Date | null;
   todayStart: Date;
   countsByDay: Map<string, number>;
+  availability?: ApiAvailabilityConfig | null | undefined;
   onChangeMonth: (d: Date) => void;
   onSelectDate: (d: Date) => void;
 }) {
@@ -280,8 +287,23 @@ function DrawerMiniCalendar({
           const isSelected = selectedDate && isSameDay(d, selectedDate);
           const isTodayCell = isToday(d);
           const past = d < todayStart;
-          const closed = d.getDay() === 0;
-          const muted = past || closed;
+          const closed = availability
+            ? !availability.windows.some(
+                (window) =>
+                  window.weekday === weekdayForDate(d, availability.timezone)
+              )
+            : availability === undefined
+              ? false
+              : true;
+          const horizonEnd = availability
+            ? new Date(
+                todayStart.getFullYear(),
+                todayStart.getMonth(),
+                todayStart.getDate() + availability.horizon_days + 1
+              )
+            : null;
+          const outsideHorizon = horizonEnd ? d >= horizonEnd : false;
+          const muted = past || closed || outsideHorizon;
           const key = isoDate(d);
           const booked = countsByDay.get(key) ?? 0;
           return (
@@ -346,6 +368,7 @@ function DayTimeline({
   timeMin,
   durationMin,
   appointments,
+  availability,
   patientName,
   onSelectTime,
 }: {
@@ -353,6 +376,7 @@ function DayTimeline({
   timeMin: number | null;
   durationMin: number;
   appointments: ApiAppointment[];
+  availability?: ApiAvailabilityConfig | null | undefined;
   patientName: (id: string) => string;
   onSelectTime: (min: number) => void;
 }) {
@@ -369,7 +393,14 @@ function DayTimeline({
   }
 
   const date = new Date(dateISO + 'T00:00:00');
-  const slots = slotsForDay(date, appointments, patientName);
+  if (availability === undefined) {
+    return (
+      <Text fontSize="13px" color="text.muted">
+        Cargando horarios disponibles…
+      </Text>
+    );
+  }
+  const slots = slotsForDay(date, appointments, patientName, availability);
 
   type Row =
     | { type: 'busy'; from: number; to: number; who: string }
@@ -390,7 +421,7 @@ function DayTimeline({
       rows.push({
         type: 'busy',
         from: s.min,
-        to: slots[j].min + CLINIC.step,
+        to: slots[j].min + slots[j].step,
         who: s.who ?? 'Ocupado',
       });
       i = j;
@@ -404,60 +435,66 @@ function DayTimeline({
       <Text fontSize="13px" fontWeight={600} mb={3} color="text.strong">
         {formatDayTimelineTitle(date)}
       </Text>
-      <VStack align="stretch" spacing={0} maxH="240px" overflowY="auto">
-        {rows.map((r, i) => (
-          <HStack key={i} align="flex-start" spacing={3} py={1}>
-            <Text
-              fontFamily="mono"
-              fontSize="11px"
-              color="text.muted"
-              w="44px"
-              flexShrink={0}
-              pt={1}
-            >
-              {minsToHHMM(r.type === 'busy' ? r.from : r.min)}
-            </Text>
-            <Box flex={1}>
-              {r.type === 'busy' ? (
-                <HStack
-                  px={3}
-                  py={2}
-                  borderRadius="6px"
-                  bg={busyBg}
-                  fontSize="12px"
-                  color="text.muted"
-                  spacing={2}
-                >
-                  <Icon as={FiCalendar} boxSize={3.5} />
-                  <Text>{r.who}</Text>
-                </HStack>
-              ) : (
-                <Button
-                  w="full"
-                  size="sm"
-                  h="auto"
-                  py={2}
-                  variant={timeMin === r.min ? 'solid' : 'outline'}
-                  colorScheme={timeMin === r.min ? 'brand' : 'gray'}
-                  bg={timeMin === r.min ? 'brand.600' : 'transparent'}
-                  color={timeMin === r.min ? 'white' : 'text.strong'}
-                  borderColor="line.strong"
-                  isDisabled={!isSlotFree(slots, r.idx, durationMin)}
-                  fontSize="12px"
-                  fontWeight={400}
-                  onClick={() => onSelectTime(r.min)}
-                >
-                  {timeMin === r.min
-                    ? `Cita aquí · ${fmt12(r.min)}`
-                    : isSlotFree(slots, r.idx, durationMin)
-                      ? 'Disponible'
-                      : `No cabe ${durationMin} min`}
-                </Button>
-              )}
-            </Box>
-          </HStack>
-        ))}
-      </VStack>
+      {slots.length === 0 ? (
+        <Text fontSize="13px" color="text.muted">
+          No hay disponibilidad configurada para este día.
+        </Text>
+      ) : (
+        <VStack align="stretch" spacing={0} maxH="240px" overflowY="auto">
+          {rows.map((r, i) => (
+            <HStack key={i} align="flex-start" spacing={3} py={1}>
+              <Text
+                fontFamily="mono"
+                fontSize="11px"
+                color="text.muted"
+                w="44px"
+                flexShrink={0}
+                pt={1}
+              >
+                {minsToHHMM(r.type === 'busy' ? r.from : r.min)}
+              </Text>
+              <Box flex={1}>
+                {r.type === 'busy' ? (
+                  <HStack
+                    px={3}
+                    py={2}
+                    borderRadius="6px"
+                    bg={busyBg}
+                    fontSize="12px"
+                    color="text.muted"
+                    spacing={2}
+                  >
+                    <Icon as={FiCalendar} boxSize={3.5} />
+                    <Text>{r.who}</Text>
+                  </HStack>
+                ) : (
+                  <Button
+                    w="full"
+                    size="sm"
+                    h="auto"
+                    py={2}
+                    variant={timeMin === r.min ? 'solid' : 'outline'}
+                    colorScheme={timeMin === r.min ? 'brand' : 'gray'}
+                    bg={timeMin === r.min ? 'brand.600' : 'transparent'}
+                    color={timeMin === r.min ? 'white' : 'text.strong'}
+                    borderColor="line.strong"
+                    isDisabled={!isSlotFree(slots, r.idx, durationMin)}
+                    fontSize="12px"
+                    fontWeight={400}
+                    onClick={() => onSelectTime(r.min)}
+                  >
+                    {timeMin === r.min
+                      ? `Cita aquí · ${fmt12(r.min)}`
+                      : isSlotFree(slots, r.idx, durationMin)
+                        ? 'Disponible'
+                        : `No cabe ${durationMin} min`}
+                  </Button>
+                )}
+              </Box>
+            </HStack>
+          ))}
+        </VStack>
+      )}
     </Box>
   );
 }

@@ -64,6 +64,8 @@ type BlockDraft = {
 interface AvailabilityEditorProps {
   isOpen: boolean;
   onClose: () => void;
+  doctor?: string;
+  onSaved?: (config: ApiAvailabilityConfig) => void;
 }
 
 const toLocalDatetime = (iso: string): string => {
@@ -89,6 +91,8 @@ const normalizeClock = (value: string): string => {
 const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
   isOpen,
   onClose,
+  doctor,
+  onSaved,
 }) => {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -142,8 +146,8 @@ const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
       setLoading(true);
       try {
         const [locResp, cfg] = await Promise.all([
-          apiService.listLocations({ size: 100 }),
-          apiService.getAvailability(),
+          apiService.listLocations({ size: 100, doctor }),
+          apiService.getAvailability(doctor),
         ]);
         if (cancelled) return;
         setLocations((locResp.results ?? []).filter((l) => l.is_active));
@@ -165,7 +169,7 @@ const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, resetFromConfig, toast]);
+  }, [doctor, isOpen, resetFromConfig, toast]);
 
   const toggleDay = (weekday: number, enabled: boolean) => {
     setEnabledDays((prev) => ({ ...prev, [weekday]: enabled }));
@@ -252,8 +256,9 @@ const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
     event.preventDefault();
     setSaving(true);
     try {
-      const cfg = await apiService.putAvailability(payload);
+      const cfg = await apiService.putAvailability(payload, doctor);
       resetFromConfig(cfg);
+      onSaved?.(cfg);
       toast({
         title: 'Disponibilidad guardada',
         status: 'success',
@@ -373,9 +378,12 @@ const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                 const name = window.prompt('Nombre del consultorio');
                 if (!name?.trim()) return;
                 try {
-                  const loc = await apiService.createLocation({
-                    name: name.trim(),
-                  });
+                  const loc = await apiService.createLocation(
+                    {
+                      name: name.trim(),
+                    },
+                    doctor
+                  );
                   setLocations((prev) => [...prev, loc]);
                   toast({
                     title: 'Consultorio creado',
@@ -433,7 +441,8 @@ const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                         try {
                           const updated = await apiService.updateLocation(
                             loc.id,
-                            { name: name.trim() }
+                            { name: name.trim() },
+                            doctor
                           );
                           setLocations((prev) =>
                             prev.map((l) => (l.id === loc.id ? updated : l))
@@ -462,7 +471,7 @@ const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                           return;
                         }
                         try {
-                          await apiService.deleteLocation(loc.id);
+                          await apiService.deleteLocation(loc.id, doctor);
                           setLocations((prev) =>
                             prev.filter((l) => l.id !== loc.id)
                           );

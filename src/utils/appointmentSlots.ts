@@ -1,7 +1,27 @@
 import type { ApiAppointment } from '../types';
+import type { ApiAvailabilityConfig } from '../services/api';
 
-/** Clinic hours: 09:00–18:00, 30-min granularity (matches Clineo prototype). */
+/** Legacy slot step when availability settings have not loaded yet. */
 export const CLINIC = { startMin: 9 * 60, endMin: 18 * 60, step: 30 } as const;
+
+const DOW_SHORT: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+export function weekdayForDate(date: Date, timezone?: string): number {
+  if (!timezone) return date.getDay();
+  const label = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'short',
+  }).format(date);
+  return DOW_SHORT[label] ?? date.getDay();
+}
 
 export const DURATION_OPTIONS = [
   { value: 30, label: '30 min', api: '30m' },
@@ -25,6 +45,7 @@ export type AppointmentSlot = {
   label: string;
   busy: boolean;
   who: string | null;
+  step: number;
 };
 
 export function isoDate(d: Date): string {
@@ -150,7 +171,8 @@ export function parseInitialTime(time?: string): number | null {
 function bookedForDay(
   date: Date,
   appointments: ApiAppointment[],
-  patientName: (id: string) => string
+  patientName: (id: string) => string,
+  step: number
 ): { s: number; e: number; who: string }[] {
   const key = isoDate(date);
   return appointments
@@ -165,7 +187,7 @@ function bookedForDay(
       const e = end.getHours() * 60 + end.getMinutes();
       return {
         s,
-        e: e > s ? e : s + CLINIC.step,
+        e: e > s ? e : s + step,
         who: patientName(a.patient_id),
       };
     });
@@ -174,20 +196,73 @@ function bookedForDay(
 export function slotsForDay(
   date: Date,
   appointments: ApiAppointment[],
-  patientName: (id: string) => string
+  patientName: (id: string) => string,
+  availability?: ApiAvailabilityConfig | null
 ): AppointmentSlot[] {
-  const booked = bookedForDay(date, appointments, patientName);
-  const slots: AppointmentSlot[] = [];
-  for (let m = CLINIC.startMin; m < CLINIC.endMin; m += CLINIC.step) {
-    const hit = booked.find((b) => m >= b.s && m < b.e);
-    slots.push({
-      min: m,
-      label: minsToHHMM(m),
-      busy: !!hit,
-      who: hit ? hit.who : null,
-    });
+  if (availability == null) {
+    return [];
   }
-  return slots;
+  const step =
+    availability.slot_duration_minutes > 0
+      ? availability.slot_duration_minutes
+      : CLINIC.step;
+  const weekday = weekdayForDate(date, availability.timezone);
+  const windows = availability.windows
+    .filter((window) => window.weekday === weekday)
+    .map((window) => ({
+      start: hhmmToMins(window.start_time),
+      end: hhmmToMins(window.end_time),
+    }))
+    .filter((window) => window.end > window.start);
+  const booked = bookedForDay(date, appointments, patientName, step);
+  const blocks = (availability?.blocks ?? [])
+    .map((block) => ({
+      start: new Date(block.starts_at),
+      end: new Date(block.ends_at),
+    }))
+    .filter(
+      (block) =>
+        !Number.isNaN(block.start.getTime()) &&
+        !Number.isNaN(block.end.getTime())
+    );
+  const minBookTime =
+    Date.now() + availability.min_notice_hours * 60 * 60 * 1000;
+  const horizonEnd = new Date(
+    new Date().getFullYear(),
+    new Date().getMonth(),
+    new Date().getDate() + availability.horizon_days + 1
+  ).getTime();
+  const slots: AppointmentSlot[] = [];
+  const seen = new Set<number>();
+  for (const window of windows) {
+    for (let m = window.start; m + step <= window.end; m += step) {
+      if (seen.has(m)) continue;
+      seen.add(m);
+      const slotStart = new Date(date);
+      slotStart.setHours(Math.floor(m / 60), m % 60, 0, 0);
+      const slotEnd = new Date(slotStart.getTime() + step * 60000);
+      const blocked = blocks.some(
+        (block) => slotStart < block.end && slotEnd > block.start
+      );
+      const outsideBookingWindow =
+        (minBookTime != null && slotStart.getTime() < minBookTime) ||
+        (horizonEnd != null && slotStart.getTime() >= horizonEnd);
+      const hit = booked.find((b) => m < b.e && m + step > b.s);
+      slots.push({
+        min: m,
+        label: minsToHHMM(m),
+        busy: blocked || outsideBookingWindow || !!hit,
+        who:
+          blocked || outsideBookingWindow
+            ? 'No disponible'
+            : hit
+              ? hit.who
+              : null,
+        step,
+      });
+    }
+  }
+  return slots.sort((a, b) => a.min - b.min);
 }
 
 export function isSlotFree(
@@ -195,12 +270,16 @@ export function isSlotFree(
   slotIndex: number,
   durationMin: number
 ): boolean {
-  const need = durationMin / CLINIC.step;
-  for (let k = 0; k < need; k++) {
-    const s = slots[slotIndex + k];
-    if (!s || s.busy) return false;
+  const first = slots[slotIndex];
+  if (!first || first.busy) return false;
+  const targetEnd = first.min + durationMin;
+  let coveredUntil = first.min;
+  for (let k = slotIndex; coveredUntil < targetEnd; k++) {
+    const slot = slots[k];
+    if (!slot || slot.busy || slot.min !== coveredUntil) return false;
+    coveredUntil = slot.min + slot.step;
   }
-  return true;
+  return coveredUntil >= targetEnd;
 }
 
 export function appointmentCountByDay(

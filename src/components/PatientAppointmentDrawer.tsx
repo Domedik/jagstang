@@ -23,7 +23,7 @@ import {
 } from './patient-appointment/types';
 import { patientFullName } from './patient-appointment/PatientSearchRow';
 import type { Patient } from '../types';
-import { apiService } from '../services/api';
+import { apiService, type ApiAvailabilityConfig } from '../services/api';
 import { usePatients } from '../hooks/usePatients';
 import { useAppointments } from '../hooks/useAppointments';
 import { phoneNumberFieldUtils } from './PhoneNumberField';
@@ -88,11 +88,15 @@ export interface PatientAppointmentDrawerProps {
   initialDate?: string;
   initialTime?: string;
   initialPatientId?: string;
+  doctorScope?: string;
+  availability?: ApiAvailabilityConfig | null | undefined;
+  schedulingEnabled?: boolean;
   createAppointment: (
     patientId: string,
     starts_at: string,
     duration: string,
-    additional_notes?: string
+    additional_notes?: string,
+    doctor?: string
   ) => Promise<void>;
 }
 
@@ -132,6 +136,9 @@ const PatientAppointmentDrawer: React.FC<PatientAppointmentDrawerProps> = ({
   initialDate,
   initialTime,
   initialPatientId,
+  doctorScope,
+  availability,
+  schedulingEnabled = true,
   createAppointment,
 }) => {
   const toast = useToast();
@@ -140,7 +147,10 @@ const PatientAppointmentDrawer: React.FC<PatientAppointmentDrawerProps> = ({
     loading: loadingPatients,
     refetch: refetchPatients,
   } = usePatients();
-  const { appointments, refetch: refetchAppointments } = useAppointments();
+  const { appointments, refetch: refetchAppointments } = useAppointments(
+    doctorScope,
+    schedulingEnabled
+  );
   const [state, setState] = useState<DrawerFormState>(() =>
     buildInitialState(entry, initialDate, initialTime, initialPatientId)
   );
@@ -315,7 +325,8 @@ const PatientAppointmentDrawer: React.FC<PatientAppointmentDrawerProps> = ({
           patientId,
           localDate.toISOString(),
           durationToApi(appt.durationMin),
-          appt.additionalNotes
+          appt.additionalNotes,
+          doctorScope
         );
         appointmentCreated = true;
       }
@@ -484,6 +495,7 @@ const PatientAppointmentDrawer: React.FC<PatientAppointmentDrawerProps> = ({
               appt={appt}
               hasWhen={hasWhen}
               appointments={appointments}
+              availability={availability}
               patientName={patientNameForSlots}
               onApptChange={patchAppt}
               collapsible={entry === 'patients'}

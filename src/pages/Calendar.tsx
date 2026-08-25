@@ -30,6 +30,7 @@ import {
   Icon,
   IconButton,
   Checkbox,
+  Select,
 } from '@chakra-ui/react';
 import {
   FiPlus,
@@ -74,6 +75,11 @@ import { useAuth } from '../contexts/AuthContext';
 import type { ApiAppointment, Patient } from '../types';
 import { normalizePatientSlug } from '../utils/patientSlug';
 import { getErrorMessage } from '../utils/apiStatus';
+import {
+  apiService,
+  type ApiAvailabilityConfig,
+  type ApiTeamMembership,
+} from '../services/api';
 
 const locales = { es };
 
@@ -146,12 +152,18 @@ const CalendarPage: React.FC = () => {
   // Cognito pool group is "DOCTORS"; some tokens/claims still use "DOCTOR".
   const doctorRole = (doctor?.role ?? '').toUpperCase();
   const isDoctor = doctorRole === 'DOCTOR' || doctorRole === 'DOCTORS';
+  const isAssistant = doctorRole === 'ASSISTANT';
+  const [memberships, setMemberships] = useState<ApiTeamMembership[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState('');
+  const doctorScope = isAssistant ? selectedDoctorId || undefined : undefined;
+  const schedulingScopeReady = !isAssistant || !!doctorScope;
   const {
     appointments,
     createAppointment,
     updateAppointmentStatus,
     deleteAppointment,
-  } = useAppointments();
+    refetch: refetchAppointments,
+  } = useAppointments(doctorScope, schedulingScopeReady);
   const {
     patients,
     loading: patientsLoading,
@@ -190,6 +202,9 @@ const CalendarPage: React.FC = () => {
     undefined
   );
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [availability, setAvailability] = useState<
+    ApiAvailabilityConfig | null | undefined
+  >(undefined);
 
   const [view, setView] = useState<ProtoView>('day');
   const [currentDate, setCurrentDate] = useState<Date>(() =>
@@ -212,6 +227,47 @@ const CalendarPage: React.FC = () => {
     () => Object.fromEntries(patients.map((p) => [p.id, p])),
     [patients]
   );
+
+  useEffect(() => {
+    if (!isAssistant) return;
+    let cancelled = false;
+    void apiService
+      .listTeamMemberships()
+      .then((teams) => {
+        if (cancelled) return;
+        setMemberships(teams);
+        setSelectedDoctorId((current) => {
+          if (teams.some((team) => team.doctor_id === current)) return current;
+          return teams.length === 1 ? teams[0].doctor_id : '';
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setMemberships([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAssistant]);
+
+  useEffect(() => {
+    if (!schedulingScopeReady) {
+      setAvailability(undefined);
+      return;
+    }
+    let cancelled = false;
+    setAvailability(undefined);
+    void apiService
+      .getAvailability(doctorScope)
+      .then((config) => {
+        if (!cancelled) setAvailability(config);
+      })
+      .catch(() => {
+        if (!cancelled) setAvailability(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [doctorScope, schedulingScopeReady]);
 
   const cachePatient = useCallback((patient: Patient) => {
     flushSync(() => {
@@ -254,9 +310,9 @@ const CalendarPage: React.FC = () => {
   };
 
   const filteredAppointments = useMemo(
-    () => appointments.filter(passesFilter),
+    () => (schedulingScopeReady ? appointments : []).filter(passesFilter),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [appointments, filters]
+    [appointments, filters, schedulingScopeReady]
   );
 
   const events: CalendarEvent[] = useMemo(() => {
@@ -466,7 +522,34 @@ const CalendarPage: React.FC = () => {
         sub={`Vista ${viewOptions.find((v) => v.id === view)?.label.toLowerCase() ?? ''}`}
         actions={
           <>
-            {isDoctor && (
+            {isAssistant && (
+              <Select
+                size="sm"
+                h="36px"
+                w={{ base: 'full', md: '240px' }}
+                value={selectedDoctorId}
+                onChange={(event) => setSelectedDoctorId(event.target.value)}
+                placeholder={
+                  memberships.length === 0
+                    ? 'Sin equipos asignados'
+                    : 'Selecciona un doctor'
+                }
+                isDisabled={memberships.length === 0}
+                bg={cardBg}
+                borderColor="line.strong"
+              >
+                {memberships.map((membership) => (
+                  <option
+                    key={membership.doctor_id}
+                    value={membership.doctor_id}
+                  >
+                    {`${membership.doctor_name} ${membership.doctor_family_name}`.trim() ||
+                      membership.doctor_id}
+                  </option>
+                ))}
+              </Select>
+            )}
+            {(isDoctor || (isAssistant && schedulingScopeReady)) && (
               <>
                 <Button
                   variant="outline"
@@ -518,6 +601,7 @@ const CalendarPage: React.FC = () => {
               color="white"
               _hover={{ bg: 'brand.700' }}
               onClick={handleNewAppointmentClick}
+              isDisabled={!schedulingScopeReady}
             >
               Nueva cita
             </Button>
@@ -1287,18 +1371,25 @@ const CalendarPage: React.FC = () => {
         initialTime={slotTime}
         initialPatientId={initialPatientId}
         createAppointment={createAppointment}
+        doctorScope={doctorScope}
+        availability={availability}
+        schedulingEnabled={schedulingScopeReady}
       />
 
-      {isDoctor && (
+      {(isDoctor || (isAssistant && schedulingScopeReady)) && (
         <>
           <AvailabilityEditor
             isOpen={isAvailabilityOpen}
             onClose={onAvailabilityClose}
+            doctor={doctorScope}
+            onSaved={setAvailability}
           />
           <RequestsInbox
             isOpen={isRequestsOpen}
             onClose={onRequestsClose}
             patients={patients}
+            doctor={doctorScope}
+            onAppointmentsChanged={refetchAppointments}
           />
         </>
       )}

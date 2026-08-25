@@ -31,6 +31,8 @@ let appointmentsLoading = false;
 let appointmentsError: string | null = null;
 let appointmentsFetchedAt = 0;
 let appointmentsInflight: Promise<void> | null = null;
+let appointmentsInflightScope = '';
+let appointmentsScope = '';
 
 function isFresh(fetchedAt: number): boolean {
   return fetchedAt > 0 && Date.now() - fetchedAt < CACHE_TTL_MS;
@@ -120,14 +122,30 @@ export async function loadPatients(force = false): Promise<void> {
   return patientsInflight;
 }
 
-export async function loadAppointments(force = false): Promise<void> {
+export async function loadAppointments(
+  force = false,
+  doctor?: string
+): Promise<void> {
   if (!hasToken()) {
     appointmentsLoading = false;
     notify();
     return;
   }
+  const scope = doctor?.trim() ?? '';
+  if (appointmentsScope !== scope) {
+    appointments = [];
+    appointmentsCount = 0;
+    appointmentsFetchedAt = 0;
+    appointmentsError = null;
+    appointmentsScope = scope;
+    notify();
+  }
   if (!force && isFresh(appointmentsFetchedAt)) return;
-  if (appointmentsInflight) return appointmentsInflight;
+  if (appointmentsInflight) {
+    if (appointmentsInflightScope === scope) return appointmentsInflight;
+    await appointmentsInflight;
+    return loadAppointments(force, doctor);
+  }
 
   const showSpinner = appointments.length === 0;
   appointmentsLoading = showSpinner;
@@ -136,7 +154,11 @@ export async function loadAppointments(force = false): Promise<void> {
 
   appointmentsInflight = (async () => {
     try {
-      const response = await apiService.listAppointments({ size: 500 });
+      const response = await apiService.listAppointments({
+        size: 500,
+        ...(scope ? { doctor: scope } : {}),
+      });
+      if (appointmentsScope !== scope) return;
       appointments = response.results;
       appointmentsCount = response.count;
       appointmentsFetchedAt = Date.now();
@@ -149,6 +171,7 @@ export async function loadAppointments(force = false): Promise<void> {
       notify();
     }
   })();
+  appointmentsInflightScope = scope;
 
   return appointmentsInflight;
 }
@@ -174,6 +197,8 @@ export function clearClinicData(): void {
   appointmentsError = null;
   appointmentsFetchedAt = 0;
   appointmentsInflight = null;
+  appointmentsInflightScope = '';
+  appointmentsScope = '';
 
   notify();
 }
@@ -183,7 +208,7 @@ export async function refreshPatients(): Promise<void> {
   return loadPatients(true);
 }
 
-export async function refreshAppointments(): Promise<void> {
+export async function refreshAppointments(doctor?: string): Promise<void> {
   appointmentsFetchedAt = 0;
-  return loadAppointments(true);
+  return loadAppointments(true, doctor);
 }

@@ -47,13 +47,11 @@ export const API_ENDPOINTS = {
   // Eventos / tiempo real (SSE) — v2.0 ({client} = patient_id)
   EVENTS_STREAM: (client: string) => `/patients/${client}/events/`,
 
-  // Citas (no disponibles aún - ver api.md)
+  // Citas (bigsby)
   APPOINTMENTS_LIST: '/appointments/',
   APPOINTMENTS_CREATE: '/appointments/',
   APPOINTMENTS_GET: (id: string) => `/appointments/${id}/`,
   APPOINTMENTS_UPDATE: (id: string) => `/appointments/${id}/`,
-  APPOINTMENTS_CONFIRM: (id: string) => `/appointments/${id}/confirm/`,
-  APPOINTMENTS_CANCEL: (id: string) => `/appointments/${id}/cancel/`,
 
   // Contactos (no disponibles aún - ver api.md)
   CONTACTS_LIST: '/contacts/',
@@ -68,6 +66,8 @@ export const API_ENDPOINTS = {
   TEAM_DELETE: (id: string) => `/doctor/team/${id}/`,
   // Lado del miembro: equipos a los que pertenece el usuario autenticado
   TEAM_MEMBERSHIPS: '/doctor/team/memberships/',
+  DOCTOR_LANDING: '/doctor/landing/',
+  DOCTOR_LANDING_PHOTO: '/doctor/landing/photo/',
 
   // Panel admin (rol ADMIN únicamente)
   ADMIN_DASHBOARD: '/admin/dashboard/',
