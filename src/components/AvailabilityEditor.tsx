@@ -428,10 +428,7 @@ const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                       size="sm"
                       variant="ghost"
                       onClick={async () => {
-                        const name = window.prompt(
-                          'Nuevo nombre',
-                          loc.name
-                        );
+                        const name = window.prompt('Nuevo nombre', loc.name);
                         if (!name?.trim() || name.trim() === loc.name) return;
                         try {
                           const updated = await apiService.updateLocation(

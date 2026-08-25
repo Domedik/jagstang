@@ -1132,13 +1132,10 @@ class ApiService {
     id: string,
     status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'
   ) {
-    return this.request<void>(
-      `${API_ENDPOINTS.APPOINTMENTS_GET(id)}status/`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({ status }),
-      }
-    );
+    return this.request<void>(`${API_ENDPOINTS.APPOINTMENTS_GET(id)}status/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
   }
 
   /**

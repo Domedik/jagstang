@@ -12,10 +12,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import FormDrawer from './FormDrawer';
-import {
-  apiService,
-  type ApiAppointmentRequest,
-} from '../services/api';
+import { apiService, type ApiAppointmentRequest } from '../services/api';
 import type { Patient } from '../types';
 import { refreshAppointments } from '../lib/clinicDataStore';
 
@@ -54,7 +51,9 @@ const RequestsInbox: React.FC<RequestsInboxProps> = ({
     setLoading(true);
     try {
       const resp = await apiService.listAppointmentRequests({ size: 100 });
-      const pending = (resp.results ?? []).filter((r) => r.status === 'PENDING');
+      const pending = (resp.results ?? []).filter(
+        (r) => r.status === 'PENDING'
+      );
       setRequests(pending);
     } catch (err) {
       toast({
