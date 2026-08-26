@@ -6,7 +6,10 @@ import {
   Button,
   FormControl,
   FormLabel,
+  Grid,
   HStack,
+  Input,
+  IconButton,
   Link,
   SimpleGrid,
   Spinner,
@@ -22,6 +25,15 @@ import PageShell from '../components/PageShell';
 import SurfaceCard from '../components/SurfaceCard';
 import { AuthField } from '../components/AuthField';
 import {
+  SPECIALTY_ICON_OPTIONS,
+  SOCIAL_LINK_FIELDS,
+  emptySocialLinks,
+  socialLinksFromApi,
+  socialLinksToApi,
+  type SpecialtyIconKey,
+  type SocialLinkKey,
+} from '../data/landingProfile';
+import {
   apiService,
   type ApiDoctorLanding,
   type ApiError,
@@ -33,7 +45,9 @@ const DoctorProfile: React.FC = () => {
 
   const [displayName, setDisplayName] = useState('');
   const [specialty, setSpecialty] = useState('');
+  const [specialtyIcon, setSpecialtyIcon] = useState<SpecialtyIconKey | ''>('');
   const [bio, setBio] = useState('');
+  const [socialLinks, setSocialLinks] = useState(emptySocialLinks);
   const [landing, setLanding] = useState<ApiDoctorLanding | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -45,7 +59,14 @@ const DoctorProfile: React.FC = () => {
     setLanding(next);
     setDisplayName(next.display_name ?? '');
     setSpecialty(next.specialty ?? '');
+    const icon = next.specialty_icon?.trim() ?? '';
+    setSpecialtyIcon(
+      SPECIALTY_ICON_OPTIONS.some((option) => option.key === icon)
+        ? (icon as SpecialtyIconKey)
+        : ''
+    );
     setBio(next.bio ?? '');
+    setSocialLinks(socialLinksFromApi(next.social_links));
     setNotFound(false);
   }, []);
 
@@ -76,6 +97,10 @@ const DoctorProfile: React.FC = () => {
   const sectionLabelColor = useColorModeValue('paper.600', 'paper.500');
   const sectionTitleColor = useColorModeValue('ink.700', 'paper.50');
   const helpTextColor = useColorModeValue('paper.700', 'paper.400');
+  const iconButtonBorder = useColorModeValue('line.strong', 'whiteAlpha.300');
+  const iconButtonSelectedBg = useColorModeValue('brand.50', 'whiteAlpha.200');
+  const iconButtonSelectedBorder = useColorModeValue('brand.500', 'brand.300');
+  const inputBg = useColorModeValue('white', 'paper.900');
 
   const handleSaveProfile = async () => {
     if (!displayName.trim()) return;
@@ -85,7 +110,9 @@ const DoctorProfile: React.FC = () => {
         await apiService.updateDoctorLanding({
           display_name: displayName.trim(),
           specialty: specialty.trim(),
+          specialty_icon: specialtyIcon || null,
           bio: bio.trim(),
+          social_links: socialLinksToApi(socialLinks),
         })
       );
       toast({
@@ -149,6 +176,10 @@ const DoctorProfile: React.FC = () => {
       setUploading(false);
       e.target.value = '';
     }
+  };
+
+  const updateSocialLink = (key: SocialLinkKey, value: string) => {
+    setSocialLinks((current) => ({ ...current, [key]: value }));
   };
 
   return (
@@ -301,6 +332,51 @@ const DoctorProfile: React.FC = () => {
                     maxLength={120}
                   />
                 </SimpleGrid>
+
+                <FormControl>
+                  <FormLabel
+                    fontFamily="mono"
+                    fontSize="11px"
+                    letterSpacing="0.08em"
+                    textTransform="uppercase"
+                    color={sectionLabelColor}
+                  >
+                    Icono de especialidad
+                  </FormLabel>
+                  <Text fontSize="12px" color={helpTextColor} mb={3}>
+                    Aparece junto a tu especialidad en la landing pública.
+                  </Text>
+                  <Grid
+                    templateColumns={{
+                      base: 'repeat(5, minmax(0, 1fr))',
+                      md: 'repeat(10, minmax(0, 1fr))',
+                    }}
+                    gap={2}
+                  >
+                    {SPECIALTY_ICON_OPTIONS.map(({ key, label, Icon }) => {
+                      const selected = specialtyIcon === key;
+                      return (
+                        <IconButton
+                          key={key}
+                          aria-label={label}
+                          title={label}
+                          icon={<Icon size={18} />}
+                          size="sm"
+                          variant="outline"
+                          borderColor={
+                            selected ? iconButtonSelectedBorder : iconButtonBorder
+                          }
+                          bg={selected ? iconButtonSelectedBg : 'transparent'}
+                          color={selected ? 'brand.700' : 'ink.600'}
+                          onClick={() =>
+                            setSpecialtyIcon(selected ? '' : key)
+                          }
+                        />
+                      );
+                    })}
+                  </Grid>
+                </FormControl>
+
                 <FormControl>
                   <FormLabel
                     fontFamily="mono"
@@ -321,6 +397,87 @@ const DoctorProfile: React.FC = () => {
                     resize="vertical"
                   />
                 </FormControl>
+
+                <HStack justify="flex-end" pt={2}>
+                  <Button
+                    onClick={handleSaveProfile}
+                    isLoading={saving}
+                    loadingText="Guardando…"
+                    isDisabled={!displayName.trim() || uploading}
+                    bg="brand.600"
+                    color="white"
+                    h="40px"
+                    fontWeight={500}
+                    _hover={{ bg: 'brand.700' }}
+                  >
+                    Guardar cambios
+                  </Button>
+                </HStack>
+              </VStack>
+            </SurfaceCard>
+
+            <SurfaceCard>
+              <VStack align="stretch" spacing={5}>
+                <Box>
+                  <Text
+                    fontFamily="mono"
+                    fontSize="11px"
+                    letterSpacing="0.08em"
+                    textTransform="uppercase"
+                    color={sectionLabelColor}
+                    mb={1}
+                  >
+                    Presencia en línea
+                  </Text>
+                  <Text
+                    fontSize="17px"
+                    fontWeight={600}
+                    color={sectionTitleColor}
+                    letterSpacing="-0.01em"
+                  >
+                    Redes sociales
+                  </Text>
+                  <Text fontSize="12px" color={helpTextColor} mt={2}>
+                    Enlaces opcionales visibles en tu landing pública. Usa URLs
+                    que comiencen con https://
+                  </Text>
+                </Box>
+
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                  {SOCIAL_LINK_FIELDS.map(({ key, label, placeholder, Icon }) => (
+                    <FormControl key={key}>
+                      <FormLabel
+                        fontFamily="mono"
+                        fontSize="11px"
+                        letterSpacing="0.08em"
+                        textTransform="uppercase"
+                        color={sectionLabelColor}
+                      >
+                        <HStack spacing={2}>
+                          <Icon size={14} />
+                          <Text as="span">{label}</Text>
+                        </HStack>
+                      </FormLabel>
+                      <Input
+                        h="40px"
+                        fontSize="14px"
+                        borderRadius="6px"
+                        borderColor="line.strong"
+                        bg={inputBg}
+                        value={socialLinks[key]}
+                        onChange={(event) =>
+                          updateSocialLink(key, event.target.value)
+                        }
+                        placeholder={placeholder}
+                        _hover={{ borderColor: 'paper.600' }}
+                        _focus={{
+                          borderColor: 'brand.500',
+                          boxShadow: '0 0 0 3px rgba(76,183,215,0.18)',
+                        }}
+                      />
+                    </FormControl>
+                  ))}
+                </SimpleGrid>
 
                 <HStack justify="flex-end" pt={2}>
                   <Button

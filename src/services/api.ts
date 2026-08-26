@@ -14,6 +14,7 @@ import {
   ApiTimeoutError,
   getErrorMessage,
 } from '../utils/apiStatus';
+import type { ApiSocialLinks } from '../data/landingProfile';
 
 /** Wider timeout for the enriched (and slower) v2.0 patients list. */
 const PATIENTS_LIST_TIMEOUT_MS = 60000;
@@ -353,7 +354,9 @@ export interface ApiTeamMembership {
 export interface ApiDoctorLanding {
   display_name: string;
   specialty?: string | null;
+  specialty_icon?: string | null;
   bio?: string | null;
+  social_links?: ApiSocialLinks;
   photo_url?: string | null;
   is_published: boolean;
   public_url?: string | null;
@@ -1188,7 +1191,9 @@ class ApiService {
   async updateDoctorLanding(data: {
     display_name?: string;
     specialty?: string;
+    specialty_icon?: string | null;
     bio?: string;
+    social_links?: ApiSocialLinks;
   }) {
     return this.request<ApiDoctorLanding>(API_ENDPOINTS.DOCTOR_LANDING, {
       method: 'PATCH',
