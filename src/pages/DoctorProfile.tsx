@@ -364,13 +364,13 @@ const DoctorProfile: React.FC = () => {
                           size="sm"
                           variant="outline"
                           borderColor={
-                            selected ? iconButtonSelectedBorder : iconButtonBorder
+                            selected
+                              ? iconButtonSelectedBorder
+                              : iconButtonBorder
                           }
                           bg={selected ? iconButtonSelectedBg : 'transparent'}
                           color={selected ? 'brand.700' : 'ink.600'}
-                          onClick={() =>
-                            setSpecialtyIcon(selected ? '' : key)
-                          }
+                          onClick={() => setSpecialtyIcon(selected ? '' : key)}
                         />
                       );
                     })}
@@ -444,39 +444,41 @@ const DoctorProfile: React.FC = () => {
                 </Box>
 
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                  {SOCIAL_LINK_FIELDS.map(({ key, label, placeholder, Icon }) => (
-                    <FormControl key={key}>
-                      <FormLabel
-                        fontFamily="mono"
-                        fontSize="11px"
-                        letterSpacing="0.08em"
-                        textTransform="uppercase"
-                        color={sectionLabelColor}
-                      >
-                        <HStack spacing={2}>
-                          <Icon size={14} />
-                          <Text as="span">{label}</Text>
-                        </HStack>
-                      </FormLabel>
-                      <Input
-                        h="40px"
-                        fontSize="14px"
-                        borderRadius="6px"
-                        borderColor="line.strong"
-                        bg={inputBg}
-                        value={socialLinks[key]}
-                        onChange={(event) =>
-                          updateSocialLink(key, event.target.value)
-                        }
-                        placeholder={placeholder}
-                        _hover={{ borderColor: 'paper.600' }}
-                        _focus={{
-                          borderColor: 'brand.500',
-                          boxShadow: '0 0 0 3px rgba(76,183,215,0.18)',
-                        }}
-                      />
-                    </FormControl>
-                  ))}
+                  {SOCIAL_LINK_FIELDS.map(
+                    ({ key, label, placeholder, Icon }) => (
+                      <FormControl key={key}>
+                        <FormLabel
+                          fontFamily="mono"
+                          fontSize="11px"
+                          letterSpacing="0.08em"
+                          textTransform="uppercase"
+                          color={sectionLabelColor}
+                        >
+                          <HStack spacing={2}>
+                            <Icon size={14} />
+                            <Text as="span">{label}</Text>
+                          </HStack>
+                        </FormLabel>
+                        <Input
+                          h="40px"
+                          fontSize="14px"
+                          borderRadius="6px"
+                          borderColor="line.strong"
+                          bg={inputBg}
+                          value={socialLinks[key]}
+                          onChange={(event) =>
+                            updateSocialLink(key, event.target.value)
+                          }
+                          placeholder={placeholder}
+                          _hover={{ borderColor: 'paper.600' }}
+                          _focus={{
+                            borderColor: 'brand.500',
+                            boxShadow: '0 0 0 3px rgba(76,183,215,0.18)',
+                          }}
+                        />
+                      </FormControl>
+                    )
+                  )}
                 </SimpleGrid>
 
                 <HStack justify="flex-end" pt={2}>
