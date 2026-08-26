@@ -38,9 +38,11 @@ import {
   type ApiDoctorLanding,
   type ApiError,
 } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const DoctorProfile: React.FC = () => {
   const toast = useToast();
+  const { updateDoctor } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [displayName, setDisplayName] = useState('');
@@ -55,20 +57,26 @@ const DoctorProfile: React.FC = () => {
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState('');
 
-  const applyLanding = useCallback((next: ApiDoctorLanding) => {
-    setLanding(next);
-    setDisplayName(next.display_name ?? '');
-    setSpecialty(next.specialty ?? '');
-    const icon = next.specialty_icon?.trim() ?? '';
-    setSpecialtyIcon(
-      SPECIALTY_ICON_OPTIONS.some((option) => option.key === icon)
-        ? (icon as SpecialtyIconKey)
-        : ''
-    );
-    setBio(next.bio ?? '');
-    setSocialLinks(socialLinksFromApi(next.social_links));
-    setNotFound(false);
-  }, []);
+  const applyLanding = useCallback(
+    (next: ApiDoctorLanding) => {
+      setLanding(next);
+      setDisplayName(next.display_name ?? '');
+      setSpecialty(next.specialty ?? '');
+      const icon = next.specialty_icon?.trim() ?? '';
+      setSpecialtyIcon(
+        SPECIALTY_ICON_OPTIONS.some((option) => option.key === icon)
+          ? (icon as SpecialtyIconKey)
+          : ''
+      );
+      setBio(next.bio ?? '');
+      setSocialLinks(socialLinksFromApi(next.social_links));
+      setNotFound(false);
+      if (next.photo_url) {
+        updateDoctor({ avatar: next.photo_url });
+      }
+    },
+    [updateDoctor]
+  );
 
   const loadLanding = useCallback(async () => {
     setLoading(true);

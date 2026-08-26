@@ -2256,6 +2256,9 @@ export interface ApiLocation {
 export interface ApiAppointmentRequest {
   id: string;
   location_id?: string | null;
+  patient_name?: string | null;
+  patient_lastname?: string | null;
+  patient_lastname_m?: string | null;
   patient_phone: string;
   preferred_at?: string | null;
   notes?: string | null;

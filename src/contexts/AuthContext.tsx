@@ -80,6 +80,21 @@ function decodeIdentityToken(idToken: string | null): {
   return null;
 }
 
+/** Prefer the published landing photo over the identity avatar when present. */
+async function loadLandingAvatar(
+  current: Doctor,
+  persist: (next: Doctor) => void
+) {
+  try {
+    const landing = await apiService.getDoctorLanding();
+    if (landing.photo_url) {
+      persist({ ...current, avatar: landing.photo_url });
+    }
+  } catch {
+    // No landing or network error — keep identity / stored avatar.
+  }
+}
+
 interface AuthContextType {
   doctor: Doctor | null;
   isAuthenticated: boolean;
@@ -88,6 +103,8 @@ interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<void>;
   loginWithMagicLink: (token: string) => Promise<void>;
   logout: () => void;
+  /** Merge fields into the in-memory/localStorage doctor (e.g. landing photo). */
+  updateDoctor: (patch: Partial<Doctor>) => void;
   isLoading: boolean;
 }
 
@@ -109,12 +126,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [doctor, setDoctor] = useState<Doctor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const persistDoctor = (next: Doctor) => {
+    setDoctor(next);
+    localStorage.setItem('doctor', JSON.stringify(next));
+  };
+
+  const updateDoctor = (patch: Partial<Doctor>) => {
+    setDoctor((current) => {
+      if (!current) return current;
+      const next = { ...current, ...patch };
+      localStorage.setItem('doctor', JSON.stringify(next));
+      return next;
+    });
+  };
+
   useEffect(() => {
     const storedDoctor = localStorage.getItem('doctor');
     const storedToken = localStorage.getItem('token');
     const idToken = localStorage.getItem('id_token');
     const identity = decodeIdentityToken(idToken);
 
+    let restored: Doctor | null = null;
     if (storedDoctor && storedToken) {
       const doctorData = JSON.parse(storedDoctor) as Doctor;
       if (
@@ -124,21 +156,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         identity?.avatar_url !== undefined ||
         identity?.role !== undefined
       ) {
-        setDoctor({
+        restored = {
           ...doctorData,
           firstName: identity.name ?? doctorData.firstName,
           lastName: identity.family_name ?? doctorData.lastName,
           gender: identity.gender ?? doctorData.gender,
           avatar: identity.avatar_url ?? doctorData.avatar,
           role: identity.role ?? doctorData.role,
-        });
+        };
       } else {
-        setDoctor(doctorData);
+        restored = doctorData;
       }
+      setDoctor(restored);
     }
     setIsLoading(false);
     if (storedToken && (identity?.role ?? '').toUpperCase() !== 'ADMIN') {
       warmClinicData();
+      if (restored) {
+        void loadLandingAvatar(restored, persistDoctor);
+      }
     }
   }, []);
 
@@ -168,10 +204,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       licenseNumber: '',
       phone: '',
     };
-    setDoctor(doctorData);
-    localStorage.setItem('doctor', JSON.stringify(doctorData));
+    persistDoctor(doctorData);
     if ((identity?.role ?? '').toUpperCase() !== 'ADMIN') {
       warmClinicData();
+      void loadLandingAvatar(doctorData, persistDoctor);
     }
   };
 
@@ -229,6 +265,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         login,
         loginWithMagicLink,
         logout,
+        updateDoctor,
         isLoading,
       }}
     >
