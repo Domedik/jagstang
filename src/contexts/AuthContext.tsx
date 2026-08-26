@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  useEffect,
+} from 'react';
 import type { Doctor, LoginCredentials } from '../types';
 import { apiService } from '../services/api';
 import { warmClinicData, clearClinicData } from '../lib/clinicDataStore';
@@ -126,19 +132,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [doctor, setDoctor] = useState<Doctor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const persistDoctor = (next: Doctor) => {
+  const persistDoctor = useCallback((next: Doctor) => {
     setDoctor(next);
     localStorage.setItem('doctor', JSON.stringify(next));
-  };
+  }, []);
 
-  const updateDoctor = (patch: Partial<Doctor>) => {
+  const updateDoctor = useCallback((patch: Partial<Doctor>) => {
     setDoctor((current) => {
       if (!current) return current;
       const next = { ...current, ...patch };
+      // Skip no-op patches so dependents (e.g. DoctorProfile load effect)
+      // do not thrash on a new doctor object identity.
+      const unchanged = (Object.keys(patch) as (keyof Doctor)[]).every(
+        (key) => current[key] === next[key]
+      );
+      if (unchanged) return current;
       localStorage.setItem('doctor', JSON.stringify(next));
       return next;
     });
-  };
+  }, []);
 
   useEffect(() => {
     const storedDoctor = localStorage.getItem('doctor');
@@ -176,7 +188,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         void loadLandingAvatar(restored, persistDoctor);
       }
     }
-  }, []);
+  }, [persistDoctor]);
 
   const applyCredentials = (
     response: { access: string; refresh: string; id: string },

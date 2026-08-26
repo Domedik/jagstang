@@ -44,20 +44,14 @@ const toLocalDatetime = (iso: string | null | undefined): string => {
 };
 
 const requestDisplayName = (req: ApiAppointmentRequest): string => {
-  const parts = [
-    req.patient_name,
-    req.patient_lastname,
-    req.patient_lastname_m,
-  ]
+  const parts = [req.patient_name, req.patient_lastname, req.patient_lastname_m]
     .map((p) => (p ?? '').trim())
     .filter(Boolean);
   return parts.join(' ');
 };
 
-const matchPatientsByPhone = (
-  phone: string,
-  patients: Patient[]
-): Patient[] => patients.filter((p) => phonesMatch(p.phone, phone));
+const matchPatientsByPhone = (phone: string, patients: Patient[]): Patient[] =>
+  patients.filter((p) => phonesMatch(p.phone, phone));
 
 const RequestsInbox: React.FC<RequestsInboxProps> = ({
   isOpen,
@@ -176,10 +170,7 @@ const RequestsInbox: React.FC<RequestsInboxProps> = ({
   const accept = async () => {
     if (!activeId || !startsAt) return;
     if (acceptMode === 'existing' && !patientId) return;
-    if (
-      acceptMode === 'new' &&
-      (!newName.trim() || !newLastname.trim())
-    ) {
+    if (acceptMode === 'new' && (!newName.trim() || !newLastname.trim())) {
       return;
     }
 
@@ -190,9 +181,7 @@ const RequestsInbox: React.FC<RequestsInboxProps> = ({
         const created = await apiService.createPatient({
           name: newName.trim(),
           lastname: newLastname.trim(),
-          ...(newLastnameM.trim()
-            ? { lastname_m: newLastnameM.trim() }
-            : {}),
+          ...(newLastnameM.trim() ? { lastname_m: newLastnameM.trim() } : {}),
           ...(newPhone.trim() ? { phone: newPhone.trim() } : {}),
         });
         resolvedPatientId = created.id;
@@ -317,9 +306,7 @@ const RequestsInbox: React.FC<RequestsInboxProps> = ({
                             colorScheme={
                               acceptMode === 'new' ? 'brand' : undefined
                             }
-                            variant={
-                              acceptMode === 'new' ? 'solid' : 'outline'
-                            }
+                            variant={acceptMode === 'new' ? 'solid' : 'outline'}
                             onClick={() => setAcceptMode('new')}
                           >
                             Crear nuevo
