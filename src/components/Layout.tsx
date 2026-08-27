@@ -33,6 +33,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import ClineoLogo from './ClineoLogo';
+import { getRoleLabel } from '../utils/roleLabels';
 import {
   HOME_NAV_ENABLED,
   PATIENTS_NAV_ENABLED,
@@ -233,7 +234,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       ]
     : [
         ...(HOME_NAV_ENABLED
-          ? [{ icon: FiHome, label: 'Home', path: '/' }]
+          ? [{ icon: FiHome, label: 'Inicio', path: '/' }]
           : []),
         ...(PATIENTS_NAV_ENABLED
           ? [{ icon: FiUsers, label: 'Pacientes', path: '/patients' }]
@@ -361,7 +362,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               color={menuLabelColor}
               mt={0.5}
             >
-              {role}
+              {getRoleLabel(role)}
             </Text>
           )}
         </Box>

@@ -7,7 +7,6 @@ import React, {
 } from 'react';
 import {
   Box,
-  ButtonGroup,
   Container,
   Heading,
   HStack,
@@ -119,6 +118,7 @@ import InterrogationFormDrawer from '../components/InterrogationFormDrawer';
 import PatientDocuments from '../components/PatientDocuments';
 import PatientFormModal from '../components/PatientFormModal';
 import PatientAppointmentDrawer from '../components/PatientAppointmentDrawer';
+import ResponsiveActionButton from '../components/ResponsiveActionButton';
 import { usePatientNotesSummary } from '../hooks/usePatientNotesSummary';
 import StreamingMarkdown from '../components/StreamingMarkdown';
 import SummaryLoadingSkeleton from '../components/SummaryLoadingSkeleton';
@@ -923,107 +923,26 @@ const PatientDetail: React.FC = () => {
         actions={
           <>
             {phone && (
-              <>
-                <IconButton
-                  as="a"
-                  href={`tel:${phone}`}
-                  aria-label="Llamar"
-                  icon={<FiPhone />}
-                  variant="outline"
-                  size="sm"
-                  h="36px"
-                  borderColor="line.strong"
-                  color="text.strong"
-                  bg={cardBg}
-                  _hover={{ borderColor: 'paper.600' }}
-                  display={{ base: 'inline-flex', md: 'none' }}
-                />
-                <Button
-                  as="a"
-                  href={`tel:${phone}`}
-                  leftIcon={<FiPhone />}
-                  variant="outline"
-                  size="sm"
-                  h="36px"
-                  borderColor="line.strong"
-                  color="text.strong"
-                  bg={cardBg}
-                  _hover={{ borderColor: 'paper.600' }}
-                  display={{ base: 'none', md: 'inline-flex' }}
-                >
-                  Llamar
-                </Button>
-              </>
+              <ResponsiveActionButton
+                icon={FiPhone}
+                label="Llamar"
+                href={`tel:${phone}`}
+                bg={cardBg}
+              />
             )}
-            <IconButton
-              aria-label="Nueva cita"
-              icon={<FiCalendar />}
-              variant="outline"
-              size="sm"
-              h="36px"
-              borderColor="line.strong"
-              color="text.strong"
-              bg={cardBg}
+            <ResponsiveActionButton
+              icon={FiCalendar}
+              label="Nueva cita"
               onClick={onNewApptOpen}
-              _hover={{ borderColor: 'paper.600' }}
-              display={{ base: 'inline-flex', md: 'none' }}
+              bg={cardBg}
             />
-            <Button
-              leftIcon={<FiCalendar />}
-              variant="outline"
-              size="sm"
-              h="36px"
-              borderColor="line.strong"
-              color="text.strong"
-              bg={cardBg}
-              onClick={onNewApptOpen}
-              _hover={{ borderColor: 'paper.600' }}
-              display={{ base: 'none', md: 'inline-flex' }}
-            >
-              Nueva cita
-            </Button>
             {canShowSummary && (
-              <>
-                <Tooltip
-                  label="Resumen del expediente"
-                  hasArrow
-                  placement="bottom"
-                >
-                  <IconButton
-                    aria-label="Resumen del expediente"
-                    icon={<FaWandMagicSparkles />}
-                    variant="outline"
-                    size="sm"
-                    h="36px"
-                    borderColor="line.strong"
-                    color="text.strong"
-                    bg={cardBg}
-                    onClick={handleOpenSummaryDrawer}
-                    _hover={{ borderColor: 'paper.600' }}
-                    display={{ base: 'inline-flex', md: 'none' }}
-                  />
-                </Tooltip>
-                <Tooltip
-                  label="Resumen del expediente"
-                  hasArrow
-                  placement="bottom"
-                >
-                  <Button
-                    leftIcon={<FaWandMagicSparkles />}
-                    variant="outline"
-                    size="sm"
-                    h="36px"
-                    borderColor="line.strong"
-                    color="text.strong"
-                    bg={cardBg}
-                    onClick={handleOpenSummaryDrawer}
-                    _hover={{ borderColor: 'paper.600' }}
-                    display={{ base: 'none', md: 'inline-flex' }}
-                  >
-                    Resumen
-                  </Button>
-                </Tooltip>
-              </>
+              <ResponsiveActionButton
+                icon={FaWandMagicSparkles}
+                label="Resumen"
+                onClick={handleOpenSummaryDrawer}
+                bg={cardBg}
+              />
             )}
             {activeTab === 'documentos' ? (
               <Button
@@ -1038,51 +957,37 @@ const PatientDetail: React.FC = () => {
                 Subir documento
               </Button>
             ) : (
-              <ButtonGroup isAttached size="sm" variant="solid">
-                <Button
+              <Menu placement="bottom-end">
+                <MenuButton
+                  as={Button}
                   leftIcon={<FiPlus />}
+                  rightIcon={<FiChevronDown />}
+                  size="sm"
                   h="36px"
                   bg="brand.600"
                   color="white"
                   _hover={{ bg: 'brand.700' }}
-                  borderRightRadius={0}
-                  onClick={() => navigate(`${patientPathBase}/notes/new`)}
+                  _active={{ bg: 'brand.700' }}
                 >
                   Nueva nota
-                </Button>
-                <Menu placement="bottom-end">
-                  <MenuButton
-                    as={IconButton}
-                    aria-label="Tipo de nota"
-                    icon={<FiChevronDown />}
-                    h="36px"
-                    minW="32px"
-                    bg="brand.600"
-                    color="white"
-                    _hover={{ bg: 'brand.700' }}
-                    _active={{ bg: 'brand.700' }}
-                    borderLeft="1px solid"
-                    borderColor="brand.700"
-                    borderLeftRadius={0}
-                  />
-                  <MenuList>
-                    <MenuItem
-                      icon={<FiEdit3 />}
-                      onClick={() => navigate(`${patientPathBase}/notes/new`)}
-                    >
-                      Nota de texto
-                    </MenuItem>
-                    <MenuItem
-                      icon={<FiFileText />}
-                      onClick={() =>
-                        navigate(`${patientPathBase}/notes/new-form`)
-                      }
-                    >
-                      Formulario
-                    </MenuItem>
-                  </MenuList>
-                </Menu>
-              </ButtonGroup>
+                </MenuButton>
+                <MenuList>
+                  <MenuItem
+                    icon={<FiEdit3 />}
+                    onClick={() => navigate(`${patientPathBase}/notes/new`)}
+                  >
+                    Nota de texto
+                  </MenuItem>
+                  <MenuItem
+                    icon={<FiFileText />}
+                    onClick={() =>
+                      navigate(`${patientPathBase}/notes/new-form`)
+                    }
+                  >
+                    Formulario
+                  </MenuItem>
+                </MenuList>
+              </Menu>
             )}
             <Menu>
               <MenuButton

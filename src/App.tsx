@@ -41,6 +41,7 @@ import AdminCompliance from './pages/admin/AdminCompliance';
 
 // Components
 import Layout from './components/Layout';
+import AuthLoadingScreen from './components/AuthLoadingScreen';
 import BetaPausedOverlay from './components/BetaPausedOverlay';
 import {
   HOME_NAV_ENABLED,
@@ -94,7 +95,7 @@ const ProtectedRoute: React.FC<{
   const { isAuthenticated, isLoading, isAdmin, doctor } = useAuth();
 
   if (isLoading) {
-    return null; // Or a loading spinner
+    return <AuthLoadingScreen />;
   }
 
   if (!isAuthenticated) {
@@ -122,7 +123,7 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading, isAdmin } = useAuth();
 
   if (isLoading) {
-    return null;
+    return <AuthLoadingScreen />;
   }
 
   if (!isAuthenticated) {
@@ -141,7 +142,7 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading, isAdmin } = useAuth();
 
   if (isLoading) {
-    return null; // Or a loading spinner
+    return <AuthLoadingScreen />;
   }
 
   if (isAuthenticated) {

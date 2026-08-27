@@ -38,7 +38,6 @@ import {
   FiX,
   FiChevronLeft,
   FiChevronRight,
-  FiDownload,
   FiClock,
   FiInbox,
 } from 'react-icons/fi';
@@ -579,19 +578,6 @@ const CalendarPage: React.FC = () => {
                 </Button>
               </>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              h="36px"
-              leftIcon={<FiDownload />}
-              borderColor="line.strong"
-              color="text.strong"
-              bg={cardBg}
-              isDisabled
-              _hover={{ borderColor: 'paper.600' }}
-            >
-              Importar
-            </Button>
             <Button
               leftIcon={<FiPlus />}
               size="sm"

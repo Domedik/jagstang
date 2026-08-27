@@ -29,7 +29,7 @@ const Login: React.FC = () => {
 
     if (!email || !password) {
       toast({
-        title: 'Error',
+        title: 'Datos incompletos',
         description: 'Por favor ingresa tu email y contraseña',
         status: 'error',
         duration: 3000,
@@ -84,7 +84,7 @@ const Login: React.FC = () => {
       <form onSubmit={handleSubmit} style={{ width: '100%' }}>
         <VStack spacing={4} align="stretch">
           <AuthField
-            label="Email"
+            label="Correo electrónico"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}

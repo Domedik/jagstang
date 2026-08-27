@@ -36,15 +36,15 @@ import {
 } from '../config/features';
 
 const NAV_ITEMS = [
-  { icon: FiHome, label: 'Dashboard', path: '/admin/dashboard' },
+  { icon: FiHome, label: 'Panel', path: '/admin/dashboard' },
   { icon: FiUsers, label: 'Usuarios', path: '/admin/usuarios' },
   ...(ADMIN_INVOICES_NAV_ENABLED
     ? [{ icon: FiFileText, label: 'Facturas', path: '/admin/facturas' }]
     : []),
   ...(ADMIN_COMPLIANCE_NAV_ENABLED
-    ? [{ icon: FiActivity, label: 'Compliance', path: '/admin/compliance' }]
+    ? [{ icon: FiActivity, label: 'Cumplimiento', path: '/admin/compliance' }]
     : []),
-  { icon: FiShield, label: 'Audit Log', path: '/admin/audit-log' },
+  { icon: FiShield, label: 'Registro de auditoría', path: '/admin/audit-log' },
 ];
 
 interface AdminNavItemProps {

@@ -381,7 +381,6 @@ const PatientList: React.FC = () => {
                   leftIcon={<Icon as={FiFilter} boxSize={3.5} />}
                   _hover={{ borderColor: 'paper.600' }}
                   _active={{ bg: cardBg }}
-                  display={{ base: 'none', md: 'inline-flex' }}
                   aria-label="Filtros"
                 >
                   <HStack as="span" spacing={1.5}>
