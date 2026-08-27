@@ -27,7 +27,10 @@ import { usePatients } from '../hooks/usePatients';
 import { useAppointments } from '../hooks/useAppointments';
 import { apiService } from '../services/api';
 import { normalizePatientSlug } from '../utils/patientSlug';
+import { getNoteEditPath } from '../utils/notePaths';
 import { COMPLIANCE_NAV_ENABLED } from '../config/features';
+
+const WELCOME_DISMISS_KEY = 'clineo_welcome_dismissed';
 
 interface RecentNote {
   id: string;
@@ -95,7 +98,11 @@ const Dashboard: React.FC = () => {
   const { appointments, createAppointment } = useAppointments();
   const [notesCount, setNotesCount] = useState<number | null>(null);
   const [notesDraft, setNotesDraft] = useState<number>(0);
+  const [draftNotes, setDraftNotes] = useState<RecentNote[]>([]);
   const [recentNotes, setRecentNotes] = useState<RecentNote[]>([]);
+  const [showWelcome, setShowWelcome] = useState(
+    () => !localStorage.getItem(WELCOME_DISMISS_KEY)
+  );
   const [complianceOverall, setComplianceOverall] =
     useState<ComplianceOverallScore | null>(null);
 
@@ -106,32 +113,33 @@ const Dashboard: React.FC = () => {
       .then((res) => {
         if (cancelled) return;
         setNotesCount(res.count);
-        setNotesDraft(res.results.filter((n) => n.status !== 'signed').length);
-        setRecentNotes(
-          res.results.slice(0, 5).map((n) => ({
-            id: n.id,
-            title: n.title,
-            status: n.status,
-            type:
-              (n as { type?: string; note_type?: string }).type ??
-              (n as { type?: string; note_type?: string }).note_type,
-            patient_id: n.patient_id,
-            patient_slug: (() => {
-              const raw = (n as { patient_slug?: string | null }).patient_slug;
-              const s = normalizePatientSlug(raw);
-              return s || undefined;
-            })(),
-            patient_name: n.patient_name,
-            patient_lastname: n.patient_lastname,
-            created_at: n.created_at,
-            accessed_at: n.accessed_at,
-          }))
-        );
+        const mapped = res.results.map((n) => ({
+          id: n.id,
+          title: n.title,
+          status: n.status,
+          type:
+            (n as { type?: string; note_type?: string }).type ??
+            (n as { type?: string; note_type?: string }).note_type,
+          patient_id: n.patient_id,
+          patient_slug: (() => {
+            const raw = (n as { patient_slug?: string | null }).patient_slug;
+            const s = normalizePatientSlug(raw);
+            return s || undefined;
+          })(),
+          patient_name: n.patient_name,
+          patient_lastname: n.patient_lastname,
+          created_at: n.created_at,
+          accessed_at: n.accessed_at,
+        }));
+        setNotesDraft(mapped.filter((n) => n.status !== 'signed').length);
+        setDraftNotes(mapped.filter((n) => n.status !== 'signed'));
+        setRecentNotes(mapped.slice(0, 5));
       })
       .catch(() => {
         if (!cancelled) {
           setNotesCount(0);
           setNotesDraft(0);
+          setDraftNotes([]);
           setRecentNotes([]);
         }
       });
@@ -229,16 +237,29 @@ const Dashboard: React.FC = () => {
     [patients]
   );
 
-  const handleNewNote = () => {
-    const firstPatient = patients[0];
-    if (firstPatient) {
-      if (!firstPatient.slug?.trim()) return;
-      navigate(
-        `/patients/${normalizePatientSlug(firstPatient.slug)}/notes/new`
-      );
-    } else {
+  const resolvePatientSlugForNote = (note: RecentNote): string => {
+    return (
+      normalizePatientSlug(note.patient_slug) ||
+      normalizePatientSlug(patientById[note.patient_id]?.slug) ||
+      normalizePatientSlug(note.patient_id) ||
+      note.patient_id
+    );
+  };
+
+  const handleReviewDrafts = () => {
+    const firstDraft = draftNotes[0];
+    if (!firstDraft) return;
+    const patientSlug = resolvePatientSlugForNote(firstDraft);
+    if (!patientSlug) {
       navigate('/patients');
+      return;
     }
+    navigate(getNoteEditPath(patientSlug, firstDraft.id, firstDraft.type));
+  };
+
+  const dismissWelcome = () => {
+    localStorage.setItem(WELCOME_DISMISS_KEY, 'true');
+    setShowWelcome(false);
   };
 
   const nextPatient = nextAppointment
@@ -299,7 +320,7 @@ const Dashboard: React.FC = () => {
               notesDraft > 0 ? (
                 <ChakraLink
                   color="brand.600"
-                  onClick={handleNewNote}
+                  onClick={handleReviewDrafts}
                   _hover={{ textDecoration: 'underline' }}
                 >
                   {notesDraft} sin firmar
@@ -326,6 +347,29 @@ const Dashboard: React.FC = () => {
         ]}
       />
 
+      {showWelcome && (
+        <Nudge tone="info">
+          Bienvenido a Clineo. Empieza con{' '}
+          <ChakraLink
+            color="statusSoft.infoFg"
+            fontWeight={600}
+            textDecoration="underline"
+            onClick={onOpen}
+          >
+            un paciente nuevo
+          </ChakraLink>{' '}
+          o revisa tu agenda de hoy.{' '}
+          <ChakraLink
+            color="statusSoft.infoFg"
+            fontWeight={600}
+            textDecoration="underline"
+            onClick={dismissWelcome}
+          >
+            Entendido
+          </ChakraLink>
+        </Nudge>
+      )}
+
       {COMPLIANCE_NAV_ENABLED && notesDraft > 0 && (
         <Nudge>
           Tienes <b>{notesDraft} notas en borrador</b>. Las notas sin firmar no
@@ -334,7 +378,7 @@ const Dashboard: React.FC = () => {
             color="statusSoft.warnFg"
             fontWeight={600}
             textDecoration="underline"
-            onClick={handleNewNote}
+            onClick={handleReviewDrafts}
           >
             Revisar y firmar →
           </ChakraLink>
@@ -543,14 +587,7 @@ const Dashboard: React.FC = () => {
                     ? `Creada hoy, ${format(created, 'HH:mm')}`
                     : `Creada ${format(created, 'd MMM, HH:mm', { locale: es })}`
                   : '';
-                const patientSlug =
-                  normalizePatientSlug(note.patient_slug) ||
-                  normalizePatientSlug(patientById[note.patient_id]?.slug) ||
-                  '';
-                const patientSlugForUrl =
-                  patientSlug ||
-                  normalizePatientSlug(note.patient_id) ||
-                  note.patient_id;
+                const patientSlugForUrl = resolvePatientSlugForNote(note);
 
                 return (
                   <HStack
@@ -558,7 +595,7 @@ const Dashboard: React.FC = () => {
                     as="button"
                     onClick={() =>
                       navigate(
-                        `/patients/${patientSlugForUrl}/notes/${note.id}/edit`
+                        getNoteEditPath(patientSlugForUrl, note.id, note.type)
                       )
                     }
                     display="grid"
@@ -582,7 +619,7 @@ const Dashboard: React.FC = () => {
                       >
                         {note.title}
                       </Text>
-                      {patientSlug ? (
+                      {patientSlugForUrl ? (
                         <Text
                           fontFamily="mono"
                           fontSize="10.5px"
@@ -592,7 +629,7 @@ const Dashboard: React.FC = () => {
                           mt="2px"
                           noOfLines={1}
                         >
-                          {patientSlug}
+                          {patientSlugForUrl}
                         </Text>
                       ) : null}
                       {when && (

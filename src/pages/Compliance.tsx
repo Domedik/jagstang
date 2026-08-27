@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -99,10 +99,13 @@ const Compliance: React.FC = () => {
   const [report, setReport] = useState<ComplianceReport | null>(null);
   const [patientNames, setPatientNames] = useState<PatientNameMap>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<AlertFilter>('all');
 
-  useEffect(() => {
+  const loadReport = useCallback(() => {
+    setLoading(true);
+    setLoadError(false);
     let cancelled = false;
     Promise.all([
       apiService.getDoctorCompliance(),
@@ -118,16 +121,23 @@ const Compliance: React.FC = () => {
         setPatientNames(nameMap);
       })
       .catch(() => {
-        if (!cancelled) setReport(null);
+        if (!cancelled) {
+          setReport(null);
+          setLoadError(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const cancel = loadReport();
+    return cancel;
+  }, [loadReport]);
 
   const pct = (v: number) => Math.round(v * 100);
 
@@ -208,9 +218,22 @@ const Compliance: React.FC = () => {
           p={10}
           textAlign="center"
         >
-          <Text color={subColor} fontSize="sm">
-            No se pudo cargar el reporte de cumplimiento.
+          <Text color={subColor} fontSize="sm" mb={4}>
+            {loadError
+              ? 'No se pudo cargar el reporte de cumplimiento. Revisa tu conexión e inténtalo de nuevo.'
+              : 'No hay datos de cumplimiento disponibles.'}
           </Text>
+          {loadError && (
+            <Button
+              size="sm"
+              colorScheme="brand"
+              bg="brand.600"
+              _hover={{ bg: 'brand.700' }}
+              onClick={loadReport}
+            >
+              Reintentar
+            </Button>
+          )}
         </Box>
       </Container>
     );

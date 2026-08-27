@@ -30,7 +30,6 @@ import {
   ModalFooter,
   ModalCloseButton,
   useDisclosure,
-  Checkbox,
   Icon,
   Avatar,
   Link as ChakraLink,
@@ -39,7 +38,6 @@ import {
   FiX,
   FiCheck,
   FiCheckCircle,
-  FiAlertCircle,
   FiChevronDown,
   FiChevronUp,
   FiEdit3,
@@ -337,21 +335,10 @@ const NoteForm: React.FC = () => {
   };
 
   const {
-    isOpen: isSignModalOpen,
-    onOpen: onSignModalOpen,
-    onClose: onSignModalClose,
-  } = useDisclosure();
-  const {
-    isOpen: isIncompleteWarningOpen,
-    onOpen: onIncompleteWarningOpen,
-    onClose: onIncompleteWarningClose,
-  } = useDisclosure();
-  const {
     isOpen: isConfirmSignOpen,
     onOpen: onConfirmSignOpen,
     onClose: onConfirmSignClose,
   } = useDisclosure();
-  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const isLoadingAnalysisAfterSaveRef = useRef(false);
   const followUpLoadedRef = useRef(false);
@@ -985,34 +972,28 @@ const NoteForm: React.FC = () => {
   const handleSignNote = async () => {
     if (!patientId || !currentNoteId) return;
     if (hasChanges()) await handleSaveDraft();
-    if (completenessAnalysis && completenessAnalysis.completeness_score < 80) {
-      onIncompleteWarningOpen();
-      return;
-    }
     onConfirmSignOpen();
   };
 
   const proceedWithSigning = async (save_anyway = false) => {
     if (!patientId || !currentNoteId) return;
     onConfirmSignClose();
-    onIncompleteWarningClose();
     setIsSubmitting(true);
     const skipAnalysis = save_anyway || useFormMode;
     try {
       await signNote(currentNoteId, skipAnalysis);
       toast({
         title: 'Nota firmada',
-        description: 'La nota médica ha sido firmada exitosamente',
+        description:
+          'La nota quedó firmada y guardada en el expediente. Ya no podrá editarse.',
         status: 'success',
-        duration: 3000,
+        duration: 4000,
         isClosable: true,
       });
-      const shouldShowModal = !localStorage.getItem('dontShowSignModal');
-      if (shouldShowModal) onSignModalOpen();
-      else navigate(patientPathBase);
+      navigate(patientPathBase);
     } catch (error: unknown) {
       toast({
-        title: 'Error',
+        title: 'No se pudo firmar',
         description: getErrorMessage(
           error,
           'Ocurrió un error al firmar la nota'
@@ -1026,12 +1007,6 @@ const NoteForm: React.FC = () => {
     }
   };
 
-  const handleCloseSignModal = () => {
-    if (dontShowAgain) localStorage.setItem('dontShowSignModal', 'true');
-    onSignModalClose();
-    navigate(patientPathBase);
-  };
-
   const getMissingFields = (): string[] => {
     if (!completenessAnalysis) return [];
     const missingKeys = completenessAnalysis.missing_fields ?? [];
@@ -1041,6 +1016,8 @@ const NoteForm: React.FC = () => {
   };
 
   const isDraft = noteStatus === 'draft';
+  const isNoteIncomplete =
+    !!completenessAnalysis && completenessAnalysis.completeness_score < 80;
   /** Borrador guardado y sin cambios locales → acción principal es Firmar; si no, Guardar borrador. */
   const canSignPrimary = isDraft && currentNoteId !== null && !hasChanges();
   const showAnalysisPanel = isDraft && currentNoteId !== null && !useFormMode;
@@ -1774,6 +1751,24 @@ const NoteForm: React.FC = () => {
           </ModalHeader>
           <ModalBody px={7} py={5}>
             <VStack spacing={3} align="stretch">
+              {isNoteIncomplete && (
+                <Alert status="warning" borderRadius="8px">
+                  <AlertIcon />
+                  <Box>
+                    <AlertTitle fontSize="sm">
+                      Completitud{' '}
+                      {completenessAnalysis?.completeness_score ?? 0}%
+                    </AlertTitle>
+                    <AlertDescription fontSize="sm">
+                      La nota parece incompleta según NOM‑004. Puedes seguir
+                      editando o firmar de todos modos.
+                      {getMissingFields().length > 0 && (
+                        <> Campos faltantes: {getMissingFields().join(', ')}.</>
+                      )}
+                    </AlertDescription>
+                  </Box>
+                </Alert>
+              )}
               <Text fontSize="13.5px" color={bodyColor} lineHeight="1.55">
                 Una vez firmada, la nota no podrá ser modificada. Esta acción es
                 permanente e irreversible.
@@ -1786,7 +1781,9 @@ const NoteForm: React.FC = () => {
                 p="10px 12px"
               >
                 <Text fontSize="13px" color={inkStrong} fontWeight={600}>
-                  ¿Deseas continuar con la firma de la nota?
+                  {isNoteIncomplete
+                    ? '¿Deseas firmar la nota de todos modos?'
+                    : '¿Deseas continuar con la firma de la nota?'}
                 </Text>
               </Box>
             </VStack>
@@ -1804,13 +1801,15 @@ const NoteForm: React.FC = () => {
                 borderRadius="10px"
                 fontWeight={600}
               >
-                Cancelar
+                {isNoteIncomplete ? 'Seguir editando' : 'Cancelar'}
               </Button>
               <Button
-                bg="brand.600"
-                color="white"
-                _hover={{ bg: 'brand.700' }}
-                onClick={() => proceedWithSigning(false)}
+                bg={isNoteIncomplete ? undefined : 'brand.600'}
+                color={isNoteIncomplete ? undefined : 'white'}
+                colorScheme={isNoteIncomplete ? 'orange' : undefined}
+                variant={isNoteIncomplete ? 'outline' : 'solid'}
+                _hover={isNoteIncomplete ? undefined : { bg: 'brand.700' }}
+                onClick={() => proceedWithSigning(isNoteIncomplete)}
                 isLoading={isSubmitting}
                 loadingText="Firmando…"
                 h="36px"
@@ -1818,126 +1817,9 @@ const NoteForm: React.FC = () => {
                 borderRadius="10px"
                 fontWeight={700}
               >
-                Continuar
+                {isNoteIncomplete ? 'Firmar de todos modos' : 'Continuar'}
               </Button>
             </HStack>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      <Modal
-        isOpen={isIncompleteWarningOpen}
-        onClose={onIncompleteWarningClose}
-        size="lg"
-      >
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            <HStack spacing={2}>
-              <Box color="statusSoft.warnFg">
-                <FiAlertCircle size={20} />
-              </Box>
-              <Text>Nota Incompleta</Text>
-            </HStack>
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4} align="stretch">
-              <Alert status="warning" borderRadius="lg">
-                <AlertIcon />
-                <VStack align="start" spacing={1}>
-                  <AlertTitle>Advertencia</AlertTitle>
-                  <AlertDescription fontSize="sm">
-                    La nota tiene una completitud del{' '}
-                    {completenessAnalysis?.completeness_score || 0}%, que está
-                    por debajo del 70% recomendado.
-                  </AlertDescription>
-                </VStack>
-              </Alert>
-              <Text>
-                La nota no parece estar completa. ¿Seguro que deseas firmar?
-              </Text>
-              {completenessAnalysis && getMissingFields().length > 0 && (
-                <Box>
-                  <Text fontWeight="semibold" mb={2} fontSize="sm">
-                    Campos faltantes:
-                  </Text>
-                  <Text fontSize="sm" color={subColor}>
-                    {getMissingFields().join(', ')}
-                  </Text>
-                </Box>
-              )}
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
-            <HStack spacing={3}>
-              <Button
-                variant="outline"
-                colorScheme="orange"
-                onClick={() => proceedWithSigning(true)}
-                isLoading={isSubmitting}
-                loadingText="Firmando..."
-              >
-                Firmar de todos modos
-              </Button>
-              <Button
-                colorScheme="brand"
-                bg="brand.600"
-                onClick={onIncompleteWarningClose}
-                isDisabled={isSubmitting}
-                size="lg"
-              >
-                Seguir Editando
-              </Button>
-            </HStack>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      <Modal isOpen={isSignModalOpen} onClose={handleCloseSignModal} size="lg">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            <HStack spacing={2}>
-              <Box color="statusSoft.okFg">
-                <FiCheckCircle size={20} />
-              </Box>
-              <Text>Nota Firmada Exitosamente</Text>
-            </HStack>
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4} align="stretch">
-              <Alert status="info" borderRadius="lg">
-                <AlertIcon />
-                <VStack align="start" spacing={1}>
-                  <AlertTitle>Importante</AlertTitle>
-                  <AlertDescription fontSize="sm">
-                    Una vez firmada, la nota no podrá ser modificada. Esta
-                    acción es permanente e irreversible.
-                  </AlertDescription>
-                </VStack>
-              </Alert>
-              <Text>
-                La nota médica ha sido firmada digitalmente y guardada en el
-                expediente del paciente.
-              </Text>
-              <Checkbox
-                isChecked={dontShowAgain}
-                onChange={(e) => setDontShowAgain(e.target.checked)}
-              >
-                No mostrarme este mensaje de nuevo
-              </Checkbox>
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              colorScheme="brand"
-              bg="brand.600"
-              onClick={handleCloseSignModal}
-            >
-              Continuar
-            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

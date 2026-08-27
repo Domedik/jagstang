@@ -165,7 +165,7 @@ const ContactForm: React.FC = () => {
               }}
             />
             <Heading size="lg">
-              {isEditing ? 'Editar Contacto' : 'Nuevo Contacto'}
+              {isEditing ? 'Editar contacto' : 'Nuevo contacto'}
             </Heading>
           </HStack>
         </Container>
@@ -245,7 +245,7 @@ const ContactForm: React.FC = () => {
 
                   <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
                     <FormControl>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>Correo electrónico</FormLabel>
                       <Input
                         type="email"
                         value={email}
@@ -328,7 +328,7 @@ const ContactForm: React.FC = () => {
                 Cancelar
               </Button>
               <Button type="submit" colorScheme="teal" size="lg">
-                {isEditing ? 'Guardar Cambios' : 'Crear Contacto'}
+                {isEditing ? 'Guardar cambios' : 'Crear contacto'}
               </Button>
             </HStack>
           </VStack>
